@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block titre %}{{ equipement["nom"] }} - AgriSats Sénégal{% endblock %}
+
+{% block contenu %}
+<a href="{{ url_for('accueil') }}" class="retour">← Retour au catalogue</a>
+
+<article class="detail">
+    {% if equipement["photo"] %}
+    <img src="{{ url_for('static', filename='uploads/' ~ equipement['photo']) }}" alt="{{ equipement['nom'] }}">
+    {% else %}
+    <div class="sans-photo grande">Pas de photo</div>
+    {% endif %}
+
+    <div class="detail-corps">
+        <h1>{{ equipement["nom"] }}</h1>
+        <p class="lieu">📍 {{ equipement["localite"] }}</p>
+        <p><strong>Type :</strong> {{ equipement["type"]|capitalize }}</p>
+        <p><strong>Propriétaire :</strong> {{ equipement["proprietaire_nom"] }}</p>
+        <p>{{ equipement["description"] }}</p>
+
+        <p class="prix">{{ equipement["prix_base_jour"]|fcfa }} <span>/ jour (prix de base)</span></p>
+
+        <button class="bouton-reserver" disabled>Réserver et payer via Lightning</button>
+        <p class="note">Bientôt disponible : le prix saisonnier et le paiement Lightning seront ajoutés ici.</p>
+    </div>
+</article>
+{% endblock %}

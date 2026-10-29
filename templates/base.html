@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block titre %}AgriSats Sénégal{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header class="entete">
+        <a href="{{ url_for('accueil') }}" class="logo">AgriSats Sénégal</a>
+        <span class="slogan">Location de matériel agricole payée en Bitcoin</span>
+    </header>
+    <main class="contenu">
+        {% block contenu %}{% endblock %}
+    </main>
+</body>
+</html>

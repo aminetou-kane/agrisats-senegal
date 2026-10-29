@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block contenu %}
+<h1>Matériel disponible</h1>
+
+<form method="get" class="filtres">
+    <select name="type">
+        <option value="">Tous les types</option>
+        {% for t in types %}
+        <option value="{{ t }}" {% if t == type_choisi %}selected{% endif %}>{{ t|capitalize }}</option>
+        {% endfor %}
+    </select>
+
+    <select name="localite">
+        <option value="">Toutes les localités</option>
+        {% for l in localites %}
+        <option value="{{ l }}" {% if l == localite_choisie %}selected{% endif %}>{{ l }}</option>
+        {% endfor %}
+    </select>
+
+    <button type="submit">Filtrer</button>
+</form>
+
+{% if equipements %}
+<div class="grille">
+    {% for e in equipements %}
+    <article class="carte">
+        {% if e["photo"] %}
+        <img src="{{ url_for('static', filename='uploads/' ~ e['photo']) }}" alt="{{ e['nom'] }}">
+        {% else %}
+        <div class="sans-photo">Pas de photo</div>
+        {% endif %}
+        <div class="carte-corps">
+            <h2><a href="{{ url_for('detail_equipement', equipement_id=e['id']) }}">{{ e["nom"] }}</a></h2>
+            <p class="lieu">📍 {{ e["localite"] }}</p>
+            <p class="description">{{ e["description"] }}</p>
+            <p class="prix">{{ e["prix_base_jour"]|fcfa }} <span>/ jour (prix de base)</span></p>
+            <a class="lien-detail" href="{{ url_for('detail_equipement', equipement_id=e['id']) }}">Voir les détails</a>
+        </div>
+    </article>
+    {% endfor %}
+</div>
+{% else %}
+<p>Aucun matériel ne correspond à votre recherche.</p>
+{% endif %}
+{% endblock %}
