@@ -14,6 +14,9 @@
         </div>
         <nav class="menu">
             {% if g.user %}
+            {% if g.user["role"] == "proprietaire" %}
+            <a href="{{ url_for('mes_machines') }}">Mes machines</a>
+            {% endif %}
             <span>Bonjour, {{ g.user["nom"] }}</span>
             <form method="post" action="{{ url_for('deconnexion') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

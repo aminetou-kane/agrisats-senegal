@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block titre %}Ajouter une machine - AgriSats Sénégal{% endblock %}
+
+{% block contenu %}
+<a href="{{ url_for('mes_machines') }}" class="retour">← Mes machines</a>
+<h1>Ajouter une machine</h1>
+
+{% if erreur %}<p class="erreur">{{ erreur }}</p>{% endif %}
+
+<form method="post" enctype="multipart/form-data" class="formulaire">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <label for="nom">Nom de la machine</label>
+    <input type="text" id="nom" name="nom" maxlength="80" value="{{ form.get('nom', '') }}" required>
+
+    <label for="type">Type</label>
+    <select id="type" name="type" required>
+        <option value="">Choisir...</option>
+        {% for t in types %}
+        <option value="{{ t }}" {% if form.get('type') == t %}selected{% endif %}>{{ t|capitalize }}</option>
+        {% endfor %}
+    </select>
+
+    <label for="localite">Localité</label>
+    <select id="localite" name="localite" required>
+        <option value="">Choisir...</option>
+        {% for l in localites %}
+        <option value="{{ l }}" {% if form.get('localite') == l %}selected{% endif %}>{{ l }}</option>
+        {% endfor %}
+    </select>
+
+    <label for="prix_base_jour">Prix de base par jour (FCFA)</label>
+    <input type="number" id="prix_base_jour" name="prix_base_jour" min="1" value="{{ form.get('prix_base_jour', '') }}" required>
+
+    <label for="description">Description (facultatif)</label>
+    <textarea id="description" name="description" maxlength="500" rows="3">{{ form.get('description', '') }}</textarea>
+
+    <label for="photo">Photo (JPG, PNG ou WEBP, 2 Mo maximum)</label>
+    <input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/webp">
+
+    <button type="submit">Publier la machine</button>
+</form>
+{% endblock %}

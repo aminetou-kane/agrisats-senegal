@@ -61,3 +61,7 @@ body {
 
 .erreur { background: #fdecea; color: #b71c1c; padding: 10px; border-radius: 6px; }
 .message { background: #e8f5e9; color: #1b5e20; padding: 10px; border-radius: 6px; }
+
+.formulaire textarea { width: 100%; padding: 10px; font-size: 1rem; border: 1px solid #b5c4b1; border-radius: 6px; font-family: inherit; }
+.bouton-lien { display: inline-block; padding: 10px 14px; background: #2e7d32; color: white; text-decoration: none; border-radius: 6px; }
+.bouton-retirer { margin-top: 10px; padding: 8px 10px; background: white; color: #b71c1c; border: 1px solid #b71c1c; border-radius: 6px; cursor: pointer; }

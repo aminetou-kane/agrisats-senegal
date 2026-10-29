@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block titre %}Mes machines - AgriSats Sénégal{% endblock %}
+
+{% block contenu %}
+<h1>Mes machines</h1>
+<p><a class="bouton-lien" href="{{ url_for('nouvelle_machine') }}">+ Ajouter une machine</a></p>
+
+{% if machines %}
+<div class="grille">
+    {% for m in machines %}
+    <article class="carte">
+        {% if m["photo"] %}
+        <img src="{{ url_for('static', filename='uploads/' ~ m['photo']) }}" alt="{{ m['nom'] }}">
+        {% else %}
+        <div class="sans-photo">Pas de photo</div>
+        {% endif %}
+        <div class="carte-corps">
+            <h2><a href="{{ url_for('detail_equipement', equipement_id=m['id']) }}">{{ m["nom"] }}</a></h2>
+            <p class="lieu">📍 {{ m["localite"] }}</p>
+            <p class="prix">{{ m["prix_base_jour"]|fcfa }} <span>/ jour</span></p>
+            <form method="post" action="{{ url_for('retirer_machine', equipement_id=m['id']) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="bouton-retirer">Retirer du catalogue</button>
+            </form>
+        </div>
+    </article>
+    {% endfor %}
+</div>
+{% else %}
+<p>Vous n'avez pas encore publié de machine.</p>
+{% endif %}
+{% endblock %}
