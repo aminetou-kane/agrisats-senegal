@@ -8,10 +8,27 @@
 </head>
 <body>
     <header class="entete">
-        <a href="{{ url_for('accueil') }}" class="logo">AgriSats Sénégal</a>
-        <span class="slogan">Location de matériel agricole payée en Bitcoin</span>
+        <div>
+            <a href="{{ url_for('accueil') }}" class="logo">AgriSats Sénégal</a>
+            <span class="slogan">Location de matériel agricole payée en Bitcoin</span>
+        </div>
+        <nav class="menu">
+            {% if g.user %}
+            <span>Bonjour, {{ g.user["nom"] }}</span>
+            <form method="post" action="{{ url_for('deconnexion') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="lien-bouton">Se déconnecter</button>
+            </form>
+            {% else %}
+            <a href="{{ url_for('connexion') }}">Connexion</a>
+            <a href="{{ url_for('inscription') }}">Inscription</a>
+            {% endif %}
+        </nav>
     </header>
     <main class="contenu">
+        {% with messages = get_flashed_messages() %}
+        {% for message in messages %}<p class="message">{{ message }}</p>{% endfor %}
+        {% endwith %}
         {% block contenu %}{% endblock %}
     </main>
 </body>

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block titre %}Inscription - AgriSats Sénégal{% endblock %}
+
+{% block contenu %}
+<h1>Créer un compte</h1>
+
+{% if erreur %}<p class="erreur">{{ erreur }}</p>{% endif %}
+
+<form method="post" class="formulaire">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <label for="nom">Nom complet</label>
+    <input type="text" id="nom" name="nom" maxlength="80" value="{{ nom }}" required>
+
+    <label for="email">Email</label>
+    <input type="email" id="email" name="email" maxlength="120" value="{{ email }}" required>
+
+    <label for="mot_de_passe">Mot de passe (8 caractères minimum)</label>
+    <input type="password" id="mot_de_passe" name="mot_de_passe" minlength="8" required>
+
+    <label for="role">Je suis</label>
+    <select id="role" name="role" required>
+        <option value="">Choisir...</option>
+        <option value="producteur">Producteur (je cherche du matériel)</option>
+        <option value="proprietaire">Propriétaire (je loue mon matériel)</option>
+    </select>
+
+    <button type="submit">Créer mon compte</button>
+</form>
+<p>Déjà inscrit ? <a href="{{ url_for('connexion') }}">Se connecter</a></p>
+{% endblock %}

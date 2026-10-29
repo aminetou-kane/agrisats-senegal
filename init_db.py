@@ -1,7 +1,7 @@
 import sqlite3
 from werkzeug.security import generate_password_hash
 
-connexion = sqlite3.connect("agriloc.db")
+connexion = sqlite3.connect("agrisats.db")
 connexion.execute("PRAGMA foreign_keys = ON")
 
 # 1. Créer les tables à partir de schema.sql
