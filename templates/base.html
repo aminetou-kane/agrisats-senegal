@@ -7,32 +7,58 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
+    <a class="lien-evitement" href="#contenu">Aller au contenu</a>
+
     <header class="entete">
-        <div>
-            <a href="{{ url_for('accueil') }}" class="logo">AgriSats Sénégal</a>
-            <span class="slogan">Location de matériel agricole payée en Bitcoin</span>
+        <div class="entete-interieur">
+            <a href="{{ url_for('accueil') }}" class="logo">
+                <svg class="logo-signe" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+                    <circle cx="16" cy="16" r="15" fill="#E3A72F"/>
+                    <path d="M16 27V9" stroke="#143D27" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+                    <path d="M16 9c-2.6-.2-4.2-1.8-4.4-4.4 2.6.2 4.2 1.8 4.4 4.4Zm0 0c2.6-.2 4.2-1.8 4.4-4.4-2.6.2-4.2 1.8-4.4 4.4Zm0 7c-2.6-.2-4.2-1.8-4.4-4.4 2.6.2 4.2 1.8 4.4 4.4Zm0 0c2.6-.2 4.2-1.8 4.4-4.4-2.6.2-4.2 1.8-4.4 4.4Zm0 7c-2.6-.2-4.2-1.8-4.4-4.4 2.6.2 4.2 1.8 4.4 4.4Zm0 0c2.6-.2 4.2-1.8 4.4-4.4-2.6.2-4.2 1.8-4.4 4.4Z" fill="#143D27"/>
+                </svg>
+                <span class="logo-texte">AgriSats Sénégal</span>
+            </a>
+
+            <nav class="menu" aria-label="Navigation principale">
+                <a href="{{ url_for('accueil') }}" {% if request.endpoint == 'accueil' %}aria-current="page"{% endif %}>Catalogue</a>
+                {% if g.user %}
+                    {% if g.user["role"] == "proprietaire" %}
+                    <a href="{{ url_for('mes_machines') }}" {% if request.endpoint in ('mes_machines', 'nouvelle_machine', 'modifier_machine') %}aria-current="page"{% endif %}>Mes machines</a>
+                    <a href="{{ url_for('reservations_recues') }}" {% if request.endpoint == 'reservations_recues' %}aria-current="page"{% endif %}>Réservations reçues</a>
+                    {% else %}
+                    <a href="{{ url_for('mes_reservations') }}" {% if request.endpoint in ('mes_reservations', 'voir_reservation') %}aria-current="page"{% endif %}>Mes réservations</a>
+                    {% endif %}
+                    <span class="menu-nom">{{ g.user["nom"] }}</span>
+                    <form method="post" action="{{ url_for('deconnexion') }}" class="menu-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-discret">Se déconnecter</button>
+                    </form>
+                {% else %}
+                    <a href="{{ url_for('connexion') }}" {% if request.endpoint == 'connexion' %}aria-current="page"{% endif %}>Connexion</a>
+                    <a href="{{ url_for('inscription') }}" class="btn btn-secondaire">S'inscrire</a>
+                {% endif %}
+            </nav>
         </div>
-        <nav class="menu">
-            {% if g.user %}
-            {% if g.user["role"] == "proprietaire" %}
-            <a href="{{ url_for('mes_machines') }}">Mes machines</a>
-            {% endif %}
-            <span>Bonjour, {{ g.user["nom"] }}</span>
-            <form method="post" action="{{ url_for('deconnexion') }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="lien-bouton">Se déconnecter</button>
-            </form>
-            {% else %}
-            <a href="{{ url_for('connexion') }}">Connexion</a>
-            <a href="{{ url_for('inscription') }}">Inscription</a>
-            {% endif %}
-        </nav>
     </header>
-    <main class="contenu">
-        {% with messages = get_flashed_messages() %}
-        {% for message in messages %}<p class="message">{{ message }}</p>{% endfor %}
+
+    {% block hero %}{% endblock %}
+
+    <main id="contenu" class="contenu">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="messages" role="status" aria-live="polite">
+            {% for categorie, message in messages %}
+            <p class="message {{ 'message-erreur' if categorie == 'erreur' else 'message-ok' }}">{{ message }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
         {% endwith %}
         {% block contenu %}{% endblock %}
     </main>
+
+    <footer class="pied">
+        <p>Projet réalisé pour le Hackathon #4 des Dakar Bitcoin Days. Les machines et les prix affichés sont des données de démonstration.</p>
+    </footer>
 </body>
 </html>

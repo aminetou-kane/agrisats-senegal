@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block titre %}{{ titre }} - AgriSats Sénégal{% endblock %}
+
+{% block contenu %}
+<div class="page-etroite page-erreur">
+    <p class="code-erreur">Erreur {{ code }}</p>
+    <h1>{{ titre }}</h1>
+    <p>{{ texte }}</p>
+    <a class="btn btn-principal" href="{{ url_for('accueil') }}">Retour au catalogue</a>
+</div>
+{% endblock %}

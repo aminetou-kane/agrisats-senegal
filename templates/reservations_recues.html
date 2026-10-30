@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "_composants.html" import statut, jours %}
+
+{% block titre %}Réservations reçues - AgriSats Sénégal{% endblock %}
+
+{% block contenu %}
+<div class="entete-page">
+    <h1>Réservations reçues</h1>
+    <a class="btn btn-secondaire" href="{{ url_for('mes_machines') }}">Mes machines</a>
+</div>
+
+{% if reservations %}
+<ul class="liste-cartes">
+    {% for r in reservations %}
+    <li class="ligne">
+        <div class="ligne-texte">
+            <h2 class="titre-ligne">{{ r["machine_nom"] }}</h2>
+            <p>Du {{ r["date_debut"]|datefr }} au {{ r["date_fin"]|datefr }} ({{ jours(r["nb_jours"]) }})</p>
+            <p class="lieu">Demandée par {{ r["producteur_nom"] }}</p>
+        </div>
+        <div class="ligne-droite">
+            <p class="prix">{{ r["prix_total"]|fcfa }}</p>
+            {{ statut(r) }}
+        </div>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<div class="vide">
+    <p>Aucune réservation pour le moment. Elles apparaîtront ici dès qu'un producteur réservera l'une de vos machines.</p>
+</div>
+{% endif %}
+{% endblock %}

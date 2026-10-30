@@ -1,0 +1,23 @@
+{# Petits morceaux d'interface réutilisés dans plusieurs pages (les "macros"). #}
+
+{# Photo de la machine, ou un fond rayé si elle n'en a pas.
+   "nom" sert quand la ligne ne s'appelle pas "nom" (ex. "machine_nom" dans une réservation). #}
+{% macro visuel(machine, nom=None) %}
+{% set libelle = nom or machine["nom"] %}
+{% if machine["photo"] %}
+<img src="{{ url_for('static', filename='uploads/' ~ machine['photo']) }}" alt="{{ libelle }}" loading="lazy">
+{% else %}
+<div class="visuel-vide" role="img" aria-label="Pas de photo pour {{ libelle }}"><span>Pas de photo</span></div>
+{% endif %}
+{% endmacro %}
+
+{# Étiquette de statut d'une réservation. #}
+{% macro statut(r) %}
+{% if r["statut"] == "confirmee" %}<span class="pastille pastille-ok">Confirmée</span>
+{% elif r["statut"] == "annulee" %}<span class="pastille pastille-neutre">Annulée</span>
+{% elif r["expiree"] %}<span class="pastille pastille-neutre">Expirée</span>
+{% else %}<span class="pastille pastille-attente">En attente de paiement</span>{% endif %}
+{% endmacro %}
+
+{# "3 jours" ou "1 jour". #}
+{% macro jours(n) %}{{ n|int }} jour{{ "s" if n|int > 1 }}{% endmacro %}

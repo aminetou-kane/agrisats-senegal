@@ -1,46 +1,66 @@
 {% extends "base.html" %}
+{% from "_composants.html" import visuel %}
+
+{% block titre %}Catalogue du matériel - AgriSats Sénégal{% endblock %}
+
+{% block hero %}
+<section class="hero">
+    <div class="hero-interieur">
+        <h1>Le bon matériel, au bon moment, pour vos rizières</h1>
+        <p>Tracteurs, moissonneuses, batteuses : réservez auprès de propriétaires de la vallée du fleuve Sénégal.</p>
+    </div>
+</section>
+{% endblock %}
 
 {% block contenu %}
-<h1>Matériel disponible</h1>
-
-<form method="get" class="filtres">
-    <select name="type">
-        <option value="">Tous les types</option>
-        {% for t in types %}
-        <option value="{{ t }}" {% if t == type_choisi %}selected{% endif %}>{{ t|capitalize }}</option>
-        {% endfor %}
-    </select>
-
-    <select name="localite">
-        <option value="">Toutes les localités</option>
-        {% for l in localites %}
-        <option value="{{ l }}" {% if l == localite_choisie %}selected{% endif %}>{{ l }}</option>
-        {% endfor %}
-    </select>
-
-    <button type="submit">Filtrer</button>
+<form method="get" class="filtres" aria-label="Filtrer le catalogue">
+    <div class="champ-filtre">
+        <label for="filtre-type">Type de machine</label>
+        <select id="filtre-type" name="type">
+            <option value="">Tous les types</option>
+            {% for t in types %}
+            <option value="{{ t }}" {% if t == type_choisi %}selected{% endif %}>{{ t|capitalize }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="champ-filtre">
+        <label for="filtre-localite">Localité</label>
+        <select id="filtre-localite" name="localite">
+            <option value="">Toutes les localités</option>
+            {% for l in localites %}
+            <option value="{{ l }}" {% if l == localite_choisie %}selected{% endif %}>{{ l }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button type="submit" class="btn btn-principal">Filtrer</button>
+    {% if type_choisi or localite_choisie %}
+    <a class="lien-simple" href="{{ url_for('accueil') }}">Tout afficher</a>
+    {% endif %}
 </form>
+
+<h2 class="titre-liste">{{ equipements|length }} machine{{ "s" if equipements|length > 1 }} disponible{{ "s" if equipements|length > 1 }}</h2>
 
 {% if equipements %}
 <div class="grille">
     {% for e in equipements %}
     <article class="carte">
-        {% if e["photo"] %}
-        <img src="{{ url_for('static', filename='uploads/' ~ e['photo']) }}" alt="{{ e['nom'] }}">
-        {% else %}
-        <div class="sans-photo">Pas de photo</div>
-        {% endif %}
+        <div class="media">
+            {{ visuel(e) }}
+            <span class="badge-type">{{ e["type"]|capitalize }}</span>
+        </div>
         <div class="carte-corps">
-            <h2><a href="{{ url_for('detail_equipement', equipement_id=e['id']) }}">{{ e["nom"] }}</a></h2>
-            <p class="lieu">📍 {{ e["localite"] }}</p>
+            <h3><a class="lien-carte" href="{{ url_for('detail_equipement', equipement_id=e['id']) }}">{{ e["nom"] }}</a></h3>
+            <p class="lieu">{{ e["localite"] }}</p>
             <p class="description">{{ e["description"] }}</p>
-            <p class="prix">{{ e["prix_base_jour"]|fcfa }} <span>/ jour (prix de base)</span></p>
-            <a class="lien-detail" href="{{ url_for('detail_equipement', equipement_id=e['id']) }}">Voir les détails</a>
+            <p class="prix">{{ e["prix_base_jour"]|fcfa }} <span>par jour</span></p>
         </div>
     </article>
     {% endfor %}
 </div>
 {% else %}
-<p>Aucun matériel ne correspond à votre recherche.</p>
+<div class="vide">
+    <p>Aucune machine ne correspond à ce filtre.</p>
+    <a class="btn btn-principal" href="{{ url_for('accueil') }}">Voir tout le catalogue</a>
+</div>
 {% endif %}
 {% endblock %}

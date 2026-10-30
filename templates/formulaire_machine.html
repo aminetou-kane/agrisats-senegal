@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% from "_composants.html" import visuel %}
+
+{% block titre %}{{ "Modifier la machine" if modification else "Ajouter une machine" }} - AgriSats Sénégal{% endblock %}
+
+{% block contenu %}
+<p class="fil"><a href="{{ url_for('mes_machines') }}">← Mes machines</a></p>
+
+<div class="page-etroite">
+    <h1>{{ "Modifier la machine" if modification else "Ajouter une machine" }}</h1>
+
+    {% if erreur %}<p class="message message-erreur" role="alert">{{ erreur }}</p>{% endif %}
+
+    <form method="post" enctype="multipart/form-data" class="formulaire">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="champ">
+            <label for="nom">Nom de la machine</label>
+            <input type="text" id="nom" name="nom" maxlength="80" value="{{ form.get('nom', '') }}" required>
+        </div>
+
+        <div class="champ">
+            <label for="type">Type</label>
+            <select id="type" name="type" required>
+                <option value="">Choisir le type</option>
+                {% for t in types %}
+                <option value="{{ t }}" {% if form.get('type') == t %}selected{% endif %}>{{ t|capitalize }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="champ">
+            <label for="localite">Localité</label>
+            <select id="localite" name="localite" required>
+                <option value="">Choisir la localité</option>
+                {% for l in localites %}
+                <option value="{{ l }}" {% if form.get('localite') == l %}selected{% endif %}>{{ l }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="champ">
+            <label for="prix_base_jour">Prix de base par jour (FCFA)</label>
+            <input type="number" id="prix_base_jour" name="prix_base_jour" min="1" step="1" inputmode="numeric" value="{{ form.get('prix_base_jour', '') }}" required aria-describedby="aide-prix">
+            <p class="aide" id="aide-prix">Le prix pour une journée en période normale.</p>
+        </div>
+
+        <div class="champ">
+            <label for="description">Description (facultatif)</label>
+            <textarea id="description" name="description" maxlength="500" rows="4">{{ form.get('description', '') }}</textarea>
+        </div>
+
+        <div class="champ">
+            <label for="photo">{{ "Nouvelle photo (facultatif)" if modification else "Photo (facultatif)" }}</label>
+            {% if modification and machine["photo"] %}
+            <div class="media media-miniature">{{ visuel(machine) }}</div>
+            {% endif %}
+            <input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/webp" aria-describedby="aide-photo">
+            <p class="aide" id="aide-photo">JPG, PNG ou WEBP, 2 Mo maximum.{% if modification and machine["photo"] %} Laissez vide pour garder la photo actuelle.{% endif %}</p>
+        </div>
+
+        <button type="submit" class="btn btn-principal btn-large">{{ "Enregistrer les modifications" if modification else "Publier la machine" }}</button>
+    </form>
+</div>
+{% endblock %}

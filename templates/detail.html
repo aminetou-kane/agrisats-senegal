@@ -1,28 +1,63 @@
 {% extends "base.html" %}
+{% from "_composants.html" import visuel %}
 
 {% block titre %}{{ equipement["nom"] }} - AgriSats Sénégal{% endblock %}
 
 {% block contenu %}
-<a href="{{ url_for('accueil') }}" class="retour">← Retour au catalogue</a>
+<p class="fil"><a href="{{ url_for('accueil') }}">← Retour au catalogue</a></p>
 
-<article class="detail">
-    {% if equipement["photo"] %}
-    <img src="{{ url_for('static', filename='uploads/' ~ equipement['photo']) }}" alt="{{ equipement['nom'] }}">
-    {% else %}
-    <div class="sans-photo grande">Pas de photo</div>
-    {% endif %}
-
-    <div class="detail-corps">
+<div class="detail">
+    <article class="detail-principal">
+        <div class="media media-grande">
+            {{ visuel(equipement) }}
+            <span class="badge-type">{{ equipement["type"]|capitalize }}</span>
+        </div>
         <h1>{{ equipement["nom"] }}</h1>
-        <p class="lieu">📍 {{ equipement["localite"] }}</p>
-        <p><strong>Type :</strong> {{ equipement["type"]|capitalize }}</p>
-        <p><strong>Propriétaire :</strong> {{ equipement["proprietaire_nom"] }}</p>
-        <p>{{ equipement["description"] }}</p>
+        <dl class="infos">
+            <div><dt>Localité</dt><dd>{{ equipement["localite"] }}</dd></div>
+            <div><dt>Propriétaire</dt><dd>{{ equipement["proprietaire_nom"] }}</dd></div>
+        </dl>
+        {% if equipement["description"] %}
+        <p class="texte">{{ equipement["description"] }}</p>
+        {% endif %}
 
-        <p class="prix">{{ equipement["prix_base_jour"]|fcfa }} <span>/ jour (prix de base)</span></p>
+        {% if periodes %}
+        <section class="periodes" aria-labelledby="titre-periodes">
+            <h2 id="titre-periodes">Dates déjà réservées</h2>
+            <ul>
+                {% for p in periodes %}
+                <li>Du {{ p["date_debut"]|datefr }} au {{ p["date_fin"]|datefr }}</li>
+                {% endfor %}
+            </ul>
+        </section>
+        {% endif %}
+    </article>
 
-        <button class="bouton-reserver" disabled>Réserver et payer via Lightning</button>
-        <p class="note">Bientôt disponible : le prix saisonnier et le paiement Lightning seront ajoutés ici.</p>
-    </div>
-</article>
+    <aside class="panneau" aria-labelledby="titre-reservation">
+        <h2 id="titre-reservation" class="visuellement-cache">Réserver cette machine</h2>
+        <p class="prix prix-grand">{{ equipement["prix_base_jour"]|fcfa }} <span>par jour</span></p>
+
+        {% if g.user and g.user["role"] == "producteur" %}
+        <form method="post" action="{{ url_for('reserver', equipement_id=equipement['id']) }}" class="formulaire formulaire-nu">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="champ">
+                <label for="date_debut">Du</label>
+                <input type="date" id="date_debut" name="date_debut" min="{{ aujourdhui }}" required>
+            </div>
+            <div class="champ">
+                <label for="date_fin">Au (jour inclus)</label>
+                <input type="date" id="date_fin" name="date_fin" min="{{ aujourdhui }}" required>
+                <p class="aide">Maximum {{ duree_max }} jours. Le prix total est calculé à l'étape suivante.</p>
+            </div>
+            <button type="submit" class="btn btn-principal btn-large">Réserver ces dates</button>
+        </form>
+        {% elif g.user and g.user["role"] == "proprietaire" %}
+        <p class="note">Seuls les producteurs peuvent réserver du matériel. Connectez-vous avec un compte producteur pour faire une réservation.</p>
+        {% else %}
+        <p class="note">Pour réserver cette machine, connectez-vous avec un compte producteur.</p>
+        <a class="btn btn-principal btn-large" href="{{ url_for('connexion') }}">Se connecter</a>
+        <p class="note">Pas encore de compte ? <a href="{{ url_for('inscription') }}">Créer un compte</a></p>
+        {% endif %}
+    </aside>
+</div>
 {% endblock %}

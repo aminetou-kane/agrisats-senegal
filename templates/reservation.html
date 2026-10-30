@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "_composants.html" import visuel, statut, jours %}
+
+{% block titre %}Réservation n° {{ r["id"] }} - AgriSats Sénégal{% endblock %}
+
+{% block contenu %}
+<p class="fil"><a href="{{ url_for('mes_reservations') }}">← Mes réservations</a></p>
+
+<div class="page-etroite">
+    <h1>Réservation n° {{ r["id"] }}</h1>
+
+    <section class="recap">
+        <div class="recap-machine">
+            <div class="media media-miniature">{{ visuel(r, r["machine_nom"]) }}</div>
+            <div>
+                <p class="recap-nom">{{ r["machine_nom"] }}</p>
+                <p class="lieu">{{ r["localite"] }}</p>
+            </div>
+        </div>
+        <dl class="infos infos-colonne">
+            <div><dt>Du</dt><dd>{{ r["date_debut"]|datefr }}</dd></div>
+            <div><dt>Au</dt><dd>{{ r["date_fin"]|datefr }}</dd></div>
+            <div><dt>Durée</dt><dd>{{ jours(r["nb_jours"]) }}</dd></div>
+            <div><dt>Statut</dt><dd>{{ statut(r) }}</dd></div>
+        </dl>
+        <p class="total"><span>Total</span> {{ r["prix_total"]|fcfa }}</p>
+    </section>
+
+    {% if r["statut"] == "en_attente" and not r["expiree"] %}
+    <p class="note">Les dates sont bloquées pour vous pendant {{ duree_blocage }} minutes. Passé ce délai sans paiement, elles redeviennent libres.</p>
+    {# Le paiement Lightning s'ajoutera ici (étape suivante). #}
+    <button type="button" class="btn btn-principal btn-large" disabled>Payer avec Bitcoin Lightning (bientôt)</button>
+    <form method="post" action="{{ url_for('annuler_reservation', reservation_id=r['id']) }}" class="formulaire-nu">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-danger btn-large">Annuler cette réservation</button>
+    </form>
+    {% elif r["statut"] == "en_attente" %}
+    <p class="note">Cette réservation a expiré faute de paiement. Les dates sont de nouveau disponibles.</p>
+    <a class="btn btn-principal" href="{{ url_for('detail_equipement', equipement_id=r['equipement_id']) }}">Réserver de nouveau</a>
+    {% elif r["statut"] == "confirmee" %}
+    <p class="note">Votre réservation est confirmée.</p>
+    {% endif %}
+</div>
+{% endblock %}
