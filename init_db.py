@@ -8,6 +8,12 @@ connexion.execute("PRAGMA foreign_keys = ON")
 with open("schema.sql", encoding="utf-8") as fichier:
     connexion.executescript(fichier.read())
 
+# 1 bis. Mise à jour d'une base créée avant l'ajout du numéro WhatsApp :
+#        CREATE TABLE IF NOT EXISTS ne modifie pas une table qui existe déjà.
+colonnes = [ligne[1] for ligne in connexion.execute("PRAGMA table_info(utilisateurs)")]
+if "telephone" not in colonnes:
+    connexion.execute("ALTER TABLE utilisateurs ADD COLUMN telephone TEXT")
+
 # 2. Ajouter des données de démo (seulement si la base est vide)
 nb_utilisateurs = connexion.execute("SELECT COUNT(*) FROM utilisateurs").fetchone()[0]
 

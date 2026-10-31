@@ -32,6 +32,11 @@
                 <option value="proprietaire" {% if role == "proprietaire" %}selected{% endif %}>Propriétaire : je loue mon matériel</option>
             </select>
         </div>
+        <div class="champ">
+            <label for="telephone">Numéro WhatsApp (propriétaires)</label>
+            <input type="tel" id="telephone" name="telephone" inputmode="tel" value="{{ telephone }}" autocomplete="tel" aria-describedby="aide-tel" placeholder="77 123 45 67">
+            <p class="aide" id="aide-tel">Pour les propriétaires : les producteurs connectés pourront vous écrire sur WhatsApp. Les producteurs peuvent laisser ce champ vide.</p>
+        </div>
         <button type="submit" class="btn btn-principal btn-large">Créer mon compte</button>
     </form>
     <p class="note">Déjà un compte ? <a href="{{ url_for('connexion') }}">Se connecter</a></p>

@@ -265,3 +265,5 @@ a { color: var(--riziere); }
     .ligne-droite { align-items: flex-start; }
     .menu { gap: 0 .9rem; }
 }
+
+.btn-espace { margin-top: .75rem; }

@@ -29,7 +29,11 @@
                     {% else %}
                     <a href="{{ url_for('mes_reservations') }}" {% if request.endpoint in ('mes_reservations', 'voir_reservation') %}aria-current="page"{% endif %}>Mes réservations</a>
                     {% endif %}
+                    {% if g.user["role"] == "proprietaire" %}
+                    <a href="{{ url_for('mon_profil') }}" class="menu-nom" {% if request.endpoint == 'mon_profil' %}aria-current="page"{% endif %}>{{ g.user["nom"] }}</a>
+                    {% else %}
                     <span class="menu-nom">{{ g.user["nom"] }}</span>
+                    {% endif %}
                     <form method="post" action="{{ url_for('deconnexion') }}" class="menu-form">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-discret">Se déconnecter</button>

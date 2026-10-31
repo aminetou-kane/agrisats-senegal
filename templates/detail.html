@@ -51,6 +51,11 @@
             </div>
             <button type="submit" class="btn btn-principal btn-large">Réserver ces dates</button>
         </form>
+        {% if lien_wa %}
+        <a class="btn btn-secondaire btn-large btn-espace" href="{{ lien_wa }}" target="_blank" rel="noopener noreferrer">Écrire au propriétaire sur WhatsApp</a>
+        {% else %}
+        <p class="note">Ce propriétaire n'a pas encore indiqué de numéro WhatsApp.</p>
+        {% endif %}
         {% elif g.user and g.user["role"] == "proprietaire" %}
         <p class="note">Seuls les producteurs peuvent réserver du matériel. Connectez-vous avec un compte producteur pour faire une réservation.</p>
         {% else %}

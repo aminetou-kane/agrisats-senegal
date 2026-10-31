@@ -9,6 +9,10 @@
     <a class="btn btn-principal" href="{{ url_for('nouvelle_machine') }}">Ajouter une machine</a>
 </div>
 
+{% if not telephone %}
+<p class="message message-erreur">Les producteurs ne peuvent pas vous écrire : <a href="{{ url_for('mon_profil') }}">ajoutez votre numéro WhatsApp</a>.</p>
+{% endif %}
+
 {% if machines %}
 <div class="grille">
     {% for m in machines %}

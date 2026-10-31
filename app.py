@@ -11,8 +11,10 @@ Organisation du fichier :
   8. Points d'accroche pour la suite (prix saisonnier IA, paiement Lightning)
 """
 import os
+import re
 import sqlite3
 import secrets
+from urllib.parse import quote
 from datetime import date, timedelta
 from functools import wraps
 
@@ -105,6 +107,40 @@ def format_date_fr(valeur):
     except (TypeError, ValueError):
         return valeur
     return f"{jour.day} {MOIS[jour.month - 1]} {jour.year}"
+
+
+@app.template_filter("telfr")
+def format_telephone(valeur):
+    """'221771234567' devient '+221 77 123 45 67'."""
+    if not valeur or not re.fullmatch(r"221[0-9]{9}", valeur):
+        return valeur
+    return f"+221 {valeur[3:5]} {valeur[5:8]} {valeur[8:10]} {valeur[10:12]}"
+
+
+def normaliser_telephone(texte):
+    """Contrôle un numéro sénégalais. Retourne (numéro, erreur).
+
+    Accepte '77 123 45 67', '+221 77 123 45 67', '00221771234567'...
+    Le numéro enregistré ne contient que des chiffres : '221771234567'.
+    """
+    chiffres = re.sub(r"[ .\-()]", "", texte.strip())
+    if chiffres.startswith("+"):
+        chiffres = chiffres[1:]
+    if chiffres.startswith("00"):
+        chiffres = chiffres[2:]
+    if re.fullmatch(r"[0-9]{9}", chiffres):
+        chiffres = "221" + chiffres
+    # [0-9] et non \d : \d accepterait aussi des chiffres d'autres alphabets.
+    if re.fullmatch(r"2217[0-9]{8}", chiffres):
+        return chiffres, None
+    return None, "Saisissez un numéro sénégalais valide, par exemple 77 123 45 67."
+
+
+def lien_whatsapp(telephone, message):
+    """Construit le lien qui ouvre WhatsApp avec un message déjà écrit."""
+    if not telephone or not re.fullmatch(r"2217[0-9]{8}", telephone):
+        return None
+    return f"https://wa.me/{telephone}?text={quote(message)}"
 
 
 @app.before_request
@@ -250,7 +286,7 @@ def detail_equipement(equipement_id):
     db = get_db()
     equipement = db.execute(
         """
-        SELECT e.*, u.nom AS proprietaire_nom
+        SELECT e.*, u.nom AS proprietaire_nom, u.telephone AS proprietaire_tel
         FROM equipements e
         JOIN utilisateurs u ON u.id = e.proprietaire_id
         WHERE e.id = ? AND e.actif = 1
@@ -259,6 +295,15 @@ def detail_equipement(equipement_id):
     ).fetchone()
     if equipement is None:
         abort(404)
+
+    # Le numéro n'est transmis à la page que pour un producteur connecté.
+    lien_wa = None
+    if g.user and g.user["role"] == "producteur":
+        lien_wa = lien_whatsapp(
+            equipement["proprietaire_tel"],
+            f"Bonjour, je suis intéressé(e) par votre {equipement['nom']} "
+            f"({equipement['localite']}) vu sur AgriSats Sénégal. Est-elle disponible ?",
+        )
 
     # Périodes déjà prises (on ne montre pas qui a réservé).
     periodes = db.execute(
@@ -274,6 +319,7 @@ def detail_equipement(equipement_id):
     return render_template(
         "detail.html",
         equipement=equipement,
+        lien_wa=lien_wa,
         periodes=periodes,
         aujourdhui=date.today().isoformat(),
         duree_max=DUREE_MAX_JOURS,
@@ -291,6 +337,7 @@ def inscription():
         email = request.form.get("email", "").strip().lower()
         mot_de_passe = request.form.get("mot_de_passe", "")
         role = request.form.get("role", "")
+        telephone = None
 
         if not nom or len(nom) > 80:
             erreur = "Saisissez votre nom (80 caractères maximum)."
@@ -300,7 +347,13 @@ def inscription():
             erreur = "Le mot de passe doit contenir au moins 8 caractères."
         elif role not in ("proprietaire", "producteur"):
             erreur = "Choisissez votre profil."
-        else:
+        elif role == "proprietaire":
+            # Seuls les propriétaires publient un numéro : les producteurs les contactent.
+            telephone, erreur = normaliser_telephone(request.form.get("telephone", ""))
+            if erreur:
+                erreur = "Propriétaires : indiquez votre numéro WhatsApp. " + erreur
+
+        if erreur is None:
             db = get_db()
             existe = db.execute(
                 "SELECT id FROM utilisateurs WHERE email = ?", (email,)
@@ -309,8 +362,8 @@ def inscription():
                 erreur = "Un compte existe déjà avec cet email."
             else:
                 db.execute(
-                    "INSERT INTO utilisateurs (nom, email, mot_de_passe_hache, role) VALUES (?, ?, ?, ?)",
-                    (nom, email, generate_password_hash(mot_de_passe), role),
+                    "INSERT INTO utilisateurs (nom, email, mot_de_passe_hache, role, telephone) VALUES (?, ?, ?, ?, ?)",
+                    (nom, email, generate_password_hash(mot_de_passe), role, telephone),
                 )
                 db.commit()
                 flash("Compte créé. Vous pouvez maintenant vous connecter.")
@@ -324,6 +377,7 @@ def inscription():
         nom=request.form.get("nom", ""),
         email=request.form.get("email", ""),
         role=request.form.get("role", ""),
+        telephone=request.form.get("telephone", ""),
     )
 
 
@@ -396,7 +450,37 @@ def mes_machines():
         "SELECT * FROM equipements WHERE proprietaire_id = ? AND actif = 1 ORDER BY id DESC",
         (g.user["id"],),
     ).fetchall()
-    return render_template("mes_machines.html", machines=machines)
+    telephone = get_db().execute(
+        "SELECT telephone FROM utilisateurs WHERE id = ?", (g.user["id"],)
+    ).fetchone()["telephone"]
+    return render_template("mes_machines.html", machines=machines, telephone=telephone)
+
+
+@app.route("/mon-profil", methods=["GET", "POST"])
+@role_requis("proprietaire")
+def mon_profil():
+    db = get_db()
+    erreur = None
+    telephone = db.execute(
+        "SELECT telephone FROM utilisateurs WHERE id = ?", (g.user["id"],)
+    ).fetchone()["telephone"]
+
+    if request.method == "POST":
+        saisie = request.form.get("telephone", "").strip()
+        if saisie == "":
+            nouveau = None   # le propriétaire retire son numéro
+        else:
+            nouveau, erreur = normaliser_telephone(saisie)
+        if erreur is None:
+            db.execute("UPDATE utilisateurs SET telephone = ? WHERE id = ?",
+                       (nouveau, g.user["id"]))
+            db.commit()
+            flash("Votre numéro WhatsApp est enregistré." if nouveau
+                  else "Votre numéro WhatsApp a été retiré.")
+            return redirect(url_for("mon_profil"))
+        telephone = saisie
+
+    return render_template("profil.html", erreur=erreur, telephone=telephone)
 
 
 @app.route("/machines/nouvelle", methods=["GET", "POST"])
@@ -578,10 +662,12 @@ def lire_reservation(reservation_id):
     """Retrouve une réservation du producteur connecté (jamais celle d'un autre)."""
     reservation = get_db().execute(
         f"""SELECT r.*, e.nom AS machine_nom, e.localite, e.photo, e.type,
+                   u.telephone AS proprietaire_tel,
                    julianday(r.date_fin) - julianday(r.date_debut) + 1 AS nb_jours,
                    {expression_expiree()} AS expiree
             FROM reservations r
             JOIN equipements e ON e.id = r.equipement_id
+            JOIN utilisateurs u ON u.id = e.proprietaire_id
             WHERE r.id = ? AND r.producteur_id = ?""",
         (reservation_id, g.user["id"]),
     ).fetchone()
@@ -593,9 +679,18 @@ def lire_reservation(reservation_id):
 @app.route("/reservations/<int:reservation_id>")
 @role_requis("producteur")
 def voir_reservation(reservation_id):
+    reservation = lire_reservation(reservation_id)
+    lien_wa = lien_whatsapp(
+        reservation["proprietaire_tel"],
+        f"Bonjour, j'ai réservé votre {reservation['machine_nom']} du "
+        f"{format_date_fr(reservation['date_debut'])} au {format_date_fr(reservation['date_fin'])} "
+        f"sur AgriSats Sénégal (réservation n° {reservation['id']}). "
+        "Pouvons-nous convenir des modalités de paiement ?",
+    )
     return render_template(
         "reservation.html",
-        r=lire_reservation(reservation_id),
+        r=reservation,
+        lien_wa=lien_wa,
         duree_blocage=DUREE_BLOCAGE_MINUTES,
     )
 

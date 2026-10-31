@@ -3,7 +3,8 @@ CREATE TABLE IF NOT EXISTS utilisateurs (
     nom TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     mot_de_passe_hache TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('proprietaire', 'producteur'))
+    role TEXT NOT NULL CHECK (role IN ('proprietaire', 'producteur')),
+    telephone TEXT
 );
 
 CREATE TABLE IF NOT EXISTS equipements (

@@ -40,5 +40,13 @@
     {% elif r["statut"] == "confirmee" %}
     <p class="note">Votre réservation est confirmée.</p>
     {% endif %}
+
+    {% if r["statut"] != "annulee" %}
+    {% if lien_wa %}
+    <a class="btn btn-secondaire btn-large btn-espace" href="{{ lien_wa }}" target="_blank" rel="noopener noreferrer">Contacter le propriétaire sur WhatsApp</a>
+    {% else %}
+    <p class="note">Le propriétaire n'a pas encore indiqué de numéro WhatsApp.</p>
+    {% endif %}
+    {% endif %}
 </div>
 {% endblock %}
