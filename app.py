@@ -10,10 +10,13 @@ Organisation du fichier :
   7. Espace producteur (réservations)
   8. Points d'accroche pour la suite (prix saisonnier IA, paiement Lightning)
 """
+import json
+import math
 import os
 import re
 import sqlite3
 import secrets
+from decimal import Decimal
 from urllib.parse import quote
 from datetime import date, timedelta
 from functools import wraps
@@ -23,6 +26,8 @@ from flask import (Flask, g, render_template, request, abort,
                    session, redirect, url_for, flash)
 from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import generate_password_hash, check_password_hash
+
+import btcpay
 
 # ---------------------------------------------------------------------------
 # 1. Configuration et sécurité
@@ -53,6 +58,18 @@ LOCALITES = ["Saint-Louis", "Richard-Toll", "Dagana", "Ndiatène",
 
 DUREE_BLOCAGE_MINUTES = 15   # une réservation non payée libère les dates après ce délai
 DUREE_MAX_JOURS = 30         # durée maximale d'une réservation
+
+
+def lire_pourcentage_acompte():
+    """Part du prix payée en Lightning (réglage ACOMPTE_POURCENT du fichier .env, 30 par défaut)."""
+    try:
+        valeur = int(os.environ.get("ACOMPTE_POURCENT", "30"))
+    except ValueError:
+        return 30
+    return valeur if 1 <= valeur <= 100 else 30
+
+
+ACOMPTE_POURCENT = lire_pourcentage_acompte()
 
 MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",
         "août", "septembre", "octobre", "novembre", "décembre"]
@@ -664,6 +681,8 @@ def lire_reservation(reservation_id):
         f"""SELECT r.*, e.nom AS machine_nom, e.localite, e.photo, e.type,
                    u.telephone AS proprietaire_tel,
                    julianday(r.date_fin) - julianday(r.date_debut) + 1 AS nb_jours,
+                   {DUREE_BLOCAGE_MINUTES} - (julianday('now') - julianday(r.date_creation)) * 1440
+                       AS minutes_restantes,
                    {expression_expiree()} AS expiree
             FROM reservations r
             JOIN equipements e ON e.id = r.equipement_id
@@ -680,6 +699,17 @@ def lire_reservation(reservation_id):
 @role_requis("producteur")
 def voir_reservation(reservation_id):
     reservation = lire_reservation(reservation_id)
+
+    # Si une facture existe, on demande à BTCPay si elle est payée (sans attendre le webhook).
+    if synchroniser_paiement(reservation):
+        reservation = lire_reservation(reservation_id)
+        if reservation["statut"] == "confirmee":
+            flash("Acompte reçu : votre réservation est confirmée.")
+
+    if reservation["acompte_fcfa"] is not None:
+        acompte, sats = reservation["acompte_fcfa"], reservation["acompte_sats"]
+    else:
+        acompte, sats = calculer_acompte(reservation["prix_total"])
     lien_wa = lien_whatsapp(
         reservation["proprietaire_tel"],
         f"Bonjour, j'ai réservé votre {reservation['machine_nom']} du "
@@ -692,6 +722,11 @@ def voir_reservation(reservation_id):
         r=reservation,
         lien_wa=lien_wa,
         duree_blocage=DUREE_BLOCAGE_MINUTES,
+        acompte=acompte,
+        sats=sats,
+        solde=reservation["prix_total"] - acompte,
+        pourcent=ACOMPTE_POURCENT,
+        paiement_actif=paiement_actif(),
     )
 
 
@@ -744,9 +779,191 @@ def calculer_prix(prix_base, date_debut, date_fin):
     return round(total)
 
 
-# PAIEMENT LIGHTNING (à venir) : c'est ici qu'on ajoutera la création de la facture
-# BTCPay Server, puis la route qui reçoit la confirmation de paiement (webhook)
-# et passe la réservation à 'confirmee'.
+# ---------------------------------------------------------------------------
+# 9. Paiement de l'acompte en Bitcoin Lightning (BTCPay Server)
+# ---------------------------------------------------------------------------
+# Principe : le navigateur ne dit JAMAIS "c'est payé". Seul BTCPay peut le dire, et
+# notre serveur le vérifie lui-même auprès de BTCPay avant de confirmer la réservation.
+def paiement_actif():
+    """Vrai si BTCPay et le taux de conversion sont configurés dans .env."""
+    return btcpay.disponible() and taux_fcfa_par_btc() is not None
+
+
+def taux_fcfa_par_btc():
+    """Taux fixe de démonstration : combien de FCFA vaut 1 BTC (réglage du fichier .env)."""
+    try:
+        taux = int(os.environ.get("TAUX_FCFA_PAR_BTC", ""))
+    except ValueError:
+        return None
+    return taux if taux > 0 else None
+
+
+def calculer_acompte(prix_total):
+    """Retourne (acompte en FCFA, acompte en satoshis ou None si le taux manque)."""
+    acompte = max(1, round(prix_total * ACOMPTE_POURCENT / 100))
+    taux = taux_fcfa_par_btc()
+    sats = max(1, math.ceil(acompte * 100_000_000 / taux)) if taux else None
+    return acompte, sats
+
+
+def sats_en_btc(sats):
+    """12345 devient '0.00012345' (texte exact, sans arrondi flottant)."""
+    return str((Decimal(sats) / Decimal(100_000_000)).quantize(Decimal("0.00000001")))
+
+
+@app.template_filter("espaces")
+def format_nombre(valeur):
+    """12345 devient '12 345'."""
+    return f"{int(valeur):,}".replace(",", " ")
+
+
+def lien_externe_sur(lien):
+    """On ne redirige le client que vers une adresse https (ou locale pour les essais)."""
+    return isinstance(lien, str) and (
+        lien.startswith("https://") or lien.startswith("http://127.0.0.1") or lien.startswith("http://localhost"))
+
+
+def appliquer_facture(reservation_id, facture):
+    """Confirme la réservation SI ET SEULEMENT SI la facture est réellement payée.
+
+    Retourne 'confirmee', 'incident' (payé, mais les dates ne sont plus libres),
+    ou None (rien à faire).
+    """
+    db = get_db()
+    # Verrou : si le webhook et la page arrivent en même temps, une seule confirmation passe.
+    db.execute("BEGIN IMMEDIATE")
+    reservation = db.execute(
+        "SELECT * FROM reservations WHERE id = ? AND statut = 'en_attente'", (reservation_id,)
+    ).fetchone()
+    if reservation is None or not reservation["id_facture"]:
+        db.rollback()
+        return None
+
+    metadonnees = facture.get("metadata") or {}
+    try:
+        montant_ok = (reservation["acompte_sats"] is not None and
+                      Decimal(str(facture.get("amount"))) == Decimal(sats_en_btc(reservation["acompte_sats"])))
+    except ArithmeticError:
+        montant_ok = False
+    conforme = (
+        facture.get("status") == "Settled"                         # payée en totalité
+        and facture.get("id") == reservation["id_facture"]         # c'est bien NOTRE facture
+        and str(metadonnees.get("orderId")) == str(reservation["id"])  # pour CETTE réservation
+        and montant_ok                                             # pour le montant attendu
+    )
+    if not conforme:
+        db.rollback()
+        return None
+
+    # Les dates sont-elles encore libres ? (la réservation a pu expirer avant le paiement)
+    conflit = db.execute(
+        """SELECT id FROM reservations
+           WHERE equipement_id = ? AND id != ?
+             AND date_debut <= ? AND date_fin >= ?
+             AND (statut = 'confirmee'
+                  OR (statut = 'en_attente' AND date_creation > datetime('now', ?)))""",
+        (reservation["equipement_id"], reservation["id"], reservation["date_fin"],
+         reservation["date_debut"], f"-{DUREE_BLOCAGE_MINUTES} minutes"),
+    ).fetchone()
+    if conflit:
+        db.execute(
+            """UPDATE reservations SET statut = 'annulee', date_paiement = datetime('now'),
+                   note = 'Acompte reçu après la perte des dates : remboursement à effectuer.'
+               WHERE id = ?""", (reservation["id"],))
+        db.commit()
+        return "incident"
+
+    db.execute("UPDATE reservations SET statut = 'confirmee', date_paiement = datetime('now') WHERE id = ?",
+               (reservation["id"],))
+    db.commit()
+    return "confirmee"
+
+
+def synchroniser_paiement(reservation):
+    """Demande à BTCPay si la facture d'une réservation en attente est payée."""
+    if reservation["statut"] != "en_attente" or not reservation["id_facture"] or not btcpay.disponible():
+        return False
+    try:
+        facture = btcpay.lire_facture(reservation["id_facture"])
+    except btcpay.ErreurBTCPay:
+        return False          # BTCPay indisponible : on réessaiera au prochain affichage
+    return appliquer_facture(reservation["id"], facture) is not None
+
+
+@app.route("/reservations/<int:reservation_id>/payer", methods=["POST"])
+@role_requis("producteur")
+def payer_reservation(reservation_id):
+    reservation = lire_reservation(reservation_id)      # 404 si ce n'est pas la sienne
+    retour = redirect(url_for("voir_reservation", reservation_id=reservation_id))
+
+    if reservation["statut"] != "en_attente" or reservation["expiree"]:
+        flash("Cette réservation n'est plus en attente de paiement.", "erreur")
+        return retour
+    if not paiement_actif():
+        flash("Le paiement Lightning n'est pas configuré sur ce serveur.", "erreur")
+        return retour
+
+    try:
+        # Une facture existe déjà ? On la réutilise si elle est encore valable.
+        if reservation["id_facture"]:
+            facture = btcpay.lire_facture(reservation["id_facture"])
+            if appliquer_facture(reservation_id, facture) == "confirmee":
+                flash("Acompte reçu : votre réservation est confirmée.")
+                return retour
+            if facture.get("status") == "New" and lien_externe_sur(reservation["lien_paiement"]):
+                return redirect(reservation["lien_paiement"])
+
+        acompte, sats = calculer_acompte(reservation["prix_total"])
+        # La facture ne doit pas vivre plus longtemps que le blocage des dates.
+        minutes = max(1, int(reservation["minutes_restantes"]))
+        site = os.environ.get("SITE_URL", "").rstrip("/")
+        url_retour = f"{site}{url_for('voir_reservation', reservation_id=reservation_id)}" if site else None
+        facture = btcpay.creer_facture(sats_en_btc(sats), reservation_id, minutes, url_retour)
+    except btcpay.ErreurBTCPay:
+        flash("Le service de paiement ne répond pas. Réessayez dans un instant.", "erreur")
+        return retour
+
+    lien = facture.get("checkoutLink")
+    if not facture.get("id") or not lien_externe_sur(lien):
+        flash("Le service de paiement a renvoyé une réponse inattendue.", "erreur")
+        return retour
+
+    db = get_db()
+    db.execute(
+        """UPDATE reservations SET id_facture = ?, lien_paiement = ?, acompte_fcfa = ?, acompte_sats = ?
+           WHERE id = ? AND producteur_id = ? AND statut = 'en_attente'""",
+        (facture["id"], lien, acompte, sats, reservation_id, g.user["id"]),
+    )
+    db.commit()
+    return redirect(lien)
+
+
+@app.route("/btcpay/webhook", methods=["POST"])
+@csrf.exempt          # BTCPay n'a pas de jeton CSRF : il est authentifié par sa signature
+def webhook_btcpay():
+    """Notification de BTCPay. On vérifie la signature, puis on redemande la facture à BTCPay."""
+    secret = os.environ.get("BTCPAY_WEBHOOK_SECRET", "")
+    if not secret:
+        abort(503)
+    corps = request.get_data()                     # le contenu EXACT, tel que signé
+    if not btcpay.verifier_signature(corps, request.headers.get("BTCPay-Sig", ""), secret):
+        abort(401)
+    try:
+        evenement = json.loads(corps)
+    except ValueError:
+        abort(400)
+
+    if isinstance(evenement, dict) and evenement.get("type") == "InvoiceSettled" and evenement.get("invoiceId"):
+        reservation = get_db().execute(
+            "SELECT id FROM reservations WHERE id_facture = ?", (str(evenement["invoiceId"]),)
+        ).fetchone()
+        if reservation:
+            try:
+                # On ne se fie pas au contenu de la notification : on lit la facture chez BTCPay.
+                appliquer_facture(reservation["id"], btcpay.lire_facture(str(evenement["invoiceId"])))
+            except btcpay.ErreurBTCPay:
+                abort(503)                          # BTCPay réessaiera plus tard
+    return "ok", 200
 
 
 if __name__ == "__main__":

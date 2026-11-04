@@ -14,6 +14,14 @@ colonnes = [ligne[1] for ligne in connexion.execute("PRAGMA table_info(utilisate
 if "telephone" not in colonnes:
     connexion.execute("ALTER TABLE utilisateurs ADD COLUMN telephone TEXT")
 
+# 1 ter. Colonnes du paiement Lightning, ajoutées aux réservations d'une base existante.
+colonnes = [ligne[1] for ligne in connexion.execute("PRAGMA table_info(reservations)")]
+for nom_colonne, type_colonne in [("lien_paiement", "TEXT"), ("acompte_fcfa", "INTEGER"),
+                                  ("acompte_sats", "INTEGER"), ("date_paiement", "TEXT"),
+                                  ("note", "TEXT")]:
+    if nom_colonne not in colonnes:
+        connexion.execute(f"ALTER TABLE reservations ADD COLUMN {nom_colonne} {type_colonne}")
+
 # 2. Ajouter des données de démo (seulement si la base est vide)
 nb_utilisateurs = connexion.execute("SELECT COUNT(*) FROM utilisateurs").fetchone()[0]
 

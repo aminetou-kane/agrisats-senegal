@@ -31,6 +31,11 @@ CREATE TABLE IF NOT EXISTS reservations (
     statut TEXT NOT NULL DEFAULT 'en_attente'
         CHECK (statut IN ('en_attente', 'confirmee', 'annulee')),
     id_facture TEXT,
+    lien_paiement TEXT,
+    acompte_fcfa INTEGER,
+    acompte_sats INTEGER,
+    date_paiement TEXT,
+    note TEXT,
     date_creation TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CHECK (date_fin >= date_debut),
     FOREIGN KEY (equipement_id) REFERENCES equipements(id),

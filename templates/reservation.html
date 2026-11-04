@@ -26,10 +26,28 @@
         <p class="total"><span>Total</span> {{ r["prix_total"]|fcfa }}</p>
     </section>
 
+    {% if r["note"] %}<p class="message message-erreur" role="alert">{{ r["note"] }}</p>{% endif %}
+
+    {% if r["statut"] != "annulee" %}
+    <section class="recap" aria-labelledby="titre-acompte">
+        <h2 id="titre-acompte" class="titre-recap">Paiement</h2>
+        <p class="total total-moyen"><span>{{ "Acompte payé" if r["statut"] == "confirmee" else "Acompte à payer (" ~ pourcent ~ " %)" }}</span> {{ acompte|fcfa }}</p>
+        {% if sats and r["statut"] != "confirmee" %}<p class="note">Soit environ {{ sats|espaces }} sats en Bitcoin Lightning, au taux fixe de démonstration.</p>{% endif %}
+        <p class="total total-moyen"><span>Solde à régler avec le propriétaire</span> {{ solde|fcfa }}</p>
+        <p class="note">Le solde se règle directement avec le propriétaire (espèces, mobile money, sacs de riz...). La plateforme ne le vérifie pas.</p>
+    </section>
+    {% endif %}
+
     {% if r["statut"] == "en_attente" and not r["expiree"] %}
     <p class="note">Les dates sont bloquées pour vous pendant {{ duree_blocage }} minutes. Passé ce délai sans paiement, elles redeviennent libres.</p>
-    {# Le paiement Lightning s'ajoutera ici (étape suivante). #}
-    <button type="button" class="btn btn-principal btn-large" disabled>Payer avec Bitcoin Lightning (bientôt)</button>
+    {% if paiement_actif %}
+    <form method="post" action="{{ url_for('payer_reservation', reservation_id=r['id']) }}" class="formulaire-nu">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-principal btn-large">Payer l'acompte avec Bitcoin Lightning</button>
+    </form>
+    {% else %}
+    <button type="button" class="btn btn-principal btn-large" disabled>Paiement Lightning non configuré</button>
+    {% endif %}
     <form method="post" action="{{ url_for('annuler_reservation', reservation_id=r['id']) }}" class="formulaire-nu">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-danger btn-large">Annuler cette réservation</button>
@@ -38,7 +56,7 @@
     <p class="note">Cette réservation a expiré faute de paiement. Les dates sont de nouveau disponibles.</p>
     <a class="btn btn-principal" href="{{ url_for('detail_equipement', equipement_id=r['equipement_id']) }}">Réserver de nouveau</a>
     {% elif r["statut"] == "confirmee" %}
-    <p class="note">Votre réservation est confirmée.</p>
+    <p class="message message-ok">Votre réservation est confirmée : l'acompte est reçu et les dates sont bloquées pour vous.</p>
     {% endif %}
 
     {% if r["statut"] != "annulee" %}

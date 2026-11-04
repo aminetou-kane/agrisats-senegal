@@ -267,3 +267,9 @@ a { color: var(--riziere); }
 }
 
 .btn-espace { margin-top: .75rem; }
+
+.titre-recap { font-size: 1.05rem; font-family: var(--police-texte); margin-bottom: .6rem; }
+.total-moyen { font-size: 1.15rem; margin-top: .5rem; }
+.total-moyen span { font-size: .95rem; }
+
+.formulaire-nu + .note, .btn + .note { margin-top: .75rem; }
