@@ -273,3 +273,24 @@ a { color: var(--riziere); }
 .total-moyen span { font-size: .95rem; }
 
 .formulaire-nu + .note, .btn + .note { margin-top: .75rem; }
+
+/* ---------- Prix saisonnier ---------- */
+.saison-ligne { margin: .2rem 0 .5rem; min-height: 1.6rem; }
+.pastille-pointe { background: var(--or); color: var(--encre); }
+.pastille-basse { background: #E6E9E7; color: #3B4A40; }
+.saisons { margin-top: 1.5rem; padding: 1rem; background: var(--surface); border: 1px solid var(--trait); border-radius: var(--rayon); }
+.saisons h2 { font-size: 1.05rem; font-family: var(--police-texte); }
+.courbe { width: 100%; max-width: 420px; height: auto; display: block; }
+.barre-normale { fill: var(--riziere); }
+.barre-pointe { fill: var(--or); }
+.barre-basse { fill: #8FA096; }
+.barre-actuelle { stroke: var(--encre); stroke-width: 2.5; }
+.courbe-lettre { font-size: 10px; fill: var(--encre-douce); font-family: var(--police-texte); }
+.tableau-saisons { border-collapse: collapse; width: 100%; max-width: 420px; margin-top: .5rem; font-size: .95rem; }
+.tableau-saisons th, .tableau-saisons td { text-align: left; padding: .3rem .5rem; border-bottom: 1px solid var(--trait); font-weight: normal; }
+.tableau-saisons thead th { font-weight: 600; }
+.explication-prix { margin: .5rem 0 0; padding-left: 1.1rem; color: var(--encre-douce); font-size: .95rem; }
+details summary { cursor: pointer; padding: .4rem 0; min-height: 44px; display: flex; align-items: center; color: var(--riziere); font-weight: 600; }
+
+.prix-grand span { display: block; margin-top: .1rem; }
+.courbe + .note { margin-top: .6rem; }

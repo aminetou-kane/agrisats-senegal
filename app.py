@@ -282,7 +282,12 @@ def accueil():
         parametres.append(localite_choisie)
     requete += " ORDER BY nom"
 
-    equipements = db.execute(requete, parametres).fetchall()
+    lignes = db.execute(requete, parametres).fetchall()
+    # On affiche le prix DU JOUR (prix de base x coefficient du mois en cours).
+    equipements = []
+    for ligne in lignes:
+        prix, coefficient, etiquette = prix_du_jour(ligne["prix_base_jour"], ligne["type"])
+        equipements.append(dict(ligne, prix_jour=prix, coefficient=coefficient, etiquette=etiquette))
     types = [r["type"] for r in db.execute(
         "SELECT DISTINCT type FROM equipements WHERE actif = 1 ORDER BY type")]
     localites = [r["localite"] for r in db.execute(
@@ -333,9 +338,13 @@ def detail_equipement(equipement_id):
         (equipement_id, f"-{DUREE_BLOCAGE_MINUTES} minutes"),
     ).fetchall()
 
+    prix, coefficient, etiquette = prix_du_jour(equipement["prix_base_jour"], equipement["type"])
     return render_template(
         "detail.html",
         equipement=equipement,
+        prix_jour=prix, coefficient=coefficient, etiquette=etiquette,
+        saisonnier=equipement["type"] in CATEGORIES_SAISON,
+        barres=courbe_saison(equipement["prix_base_jour"], equipement["type"], date.today().month),
         lien_wa=lien_wa,
         periodes=periodes,
         aujourdhui=date.today().isoformat(),
@@ -664,7 +673,7 @@ def reserver(equipement_id):
         return retour
 
     # Le prix est calculé ICI, côté serveur : il ne vient jamais du navigateur.
-    prix_total = calculer_prix(equipement["prix_base_jour"], debut, fin)
+    prix_total = calculer_prix(equipement["prix_base_jour"], equipement["type"], debut, fin)
     curseur = db.execute(
         """INSERT INTO reservations
            (equipement_id, producteur_id, date_debut, date_fin, prix_total)
@@ -679,7 +688,7 @@ def lire_reservation(reservation_id):
     """Retrouve une réservation du producteur connecté (jamais celle d'un autre)."""
     reservation = get_db().execute(
         f"""SELECT r.*, e.nom AS machine_nom, e.localite, e.photo, e.type,
-                   u.telephone AS proprietaire_tel,
+                   e.prix_base_jour AS prix_base, u.telephone AS proprietaire_tel,
                    julianday(r.date_fin) - julianday(r.date_debut) + 1 AS nb_jours,
                    {DUREE_BLOCAGE_MINUTES} - (julianday('now') - julianday(r.date_creation)) * 1440
                        AS minutes_restantes,
@@ -717,9 +726,17 @@ def voir_reservation(reservation_id):
         f"sur AgriSats Sénégal (réservation n° {reservation['id']}). "
         "Pouvons-nous convenir des modalités de paiement ?",
     )
+    # Explication du prix, affichée seulement si elle retombe bien sur le total enregistré.
+    explication = detail_prix(reservation["prix_base"], reservation["type"],
+                              date.fromisoformat(reservation["date_debut"]),
+                              date.fromisoformat(reservation["date_fin"]))
+    ecart = abs(sum(l["prix_jour"] * l["jours"] for l in explication) - reservation["prix_total"])
+    if ecart > sum(l["jours"] for l in explication):      # plus d'1 FCFA d'écart par jour : on n'explique pas
+        explication = []
     return render_template(
         "reservation.html",
         r=reservation,
+        explication=explication,
         lien_wa=lien_wa,
         duree_blocage=DUREE_BLOCAGE_MINUTES,
         acompte=acompte,
@@ -762,21 +779,94 @@ def mes_reservations():
 
 
 # ---------------------------------------------------------------------------
-# 8. Points d'accroche pour la suite (on les remplira ensemble)
+# 8. Prix saisonnier
 # ---------------------------------------------------------------------------
-def coefficient_saison(jour):
-    """PRIX SAISONNIER (module IA, à venir). Pour l'instant : aucun effet (1.0)."""
-    return 1.0
+# Principe : prix du jour = prix de base x coefficient du mois.
+# Les coefficients sont dans la table coefficients_saison (une valeur par catégorie de
+# machine et par mois) : on peut les corriger ou les remplacer par des valeurs apprises
+# sur de vraies données, sans modifier le reste du code.
+CATEGORIES_SAISON = {
+    "tracteur": "preparation", "motoculteur": "preparation", "planeuse": "preparation",
+    "moissonneuse": "recolte", "batteuse": "recolte",
+}   # remorque, pompe et autres : pas de saisonnalité (coefficient 1.0)
+INITIALES_MOIS = "JFMAMJJASOND"
 
 
-def calculer_prix(prix_base, date_debut, date_fin):
-    """Somme du prix de chaque jour, début et fin inclus."""
+def charger_coefficients(type_machine):
+    """Retourne {mois: coefficient} pour ce type de machine (1.0 partout sans saisonnalité)."""
+    coefficients = {mois: 1.0 for mois in range(1, 13)}
+    categorie = CATEGORIES_SAISON.get(type_machine)
+    if categorie:
+        lignes = get_db().execute(
+            "SELECT mois, coefficient FROM coefficients_saison WHERE categorie = ?", (categorie,))
+        for ligne in lignes:
+            coefficients[ligne["mois"]] = ligne["coefficient"]
+    return coefficients
+
+
+def etiquette_saison(coefficient):
+    """Traduit un coefficient en mot : pointe, basse ou normale."""
+    if coefficient >= 1.05:
+        return "pointe"
+    if coefficient <= 0.95:
+        return "basse"
+    return "normale"
+
+
+@app.template_filter("coef")
+def format_coefficient(valeur):
+    """1.4 devient '1,4'."""
+    return f"{valeur:.1f}".replace(".", ",")
+
+
+def prix_du_jour(prix_base, type_machine, jour=None):
+    """Retourne (prix du jour, coefficient, étiquette) pour un type de machine."""
+    jour = jour or date.today()
+    coefficient = charger_coefficients(type_machine)[jour.month]
+    return round(prix_base * coefficient), coefficient, etiquette_saison(coefficient)
+
+
+def calculer_prix(prix_base, type_machine, date_debut, date_fin):
+    """Somme du prix de chaque jour, début et fin inclus (le coefficient dépend du mois)."""
+    coefficients = charger_coefficients(type_machine)
     total = 0
     jour = date_debut
     while jour <= date_fin:
-        total += prix_base * coefficient_saison(jour)
+        total += prix_base * coefficients[jour.month]
         jour += timedelta(days=1)
     return round(total)
+
+
+def detail_prix(prix_base, type_machine, date_debut, date_fin):
+    """Regroupe les jours d'une location par coefficient, pour expliquer le prix."""
+    coefficients = charger_coefficients(type_machine)
+    jours_par_coefficient = {}
+    jour = date_debut
+    while jour <= date_fin:
+        coefficient = coefficients[jour.month]
+        jours_par_coefficient[coefficient] = jours_par_coefficient.get(coefficient, 0) + 1
+        jour += timedelta(days=1)
+    return [
+        {"coefficient": c, "jours": n, "prix_jour": round(prix_base * c), "etiquette": etiquette_saison(c)}
+        for c, n in sorted(jours_par_coefficient.items())
+    ]
+
+
+def courbe_saison(prix_base, type_machine, mois_actuel):
+    """Données du petit graphique 'prix mois par mois' (12 barres)."""
+    coefficients = charger_coefficients(type_machine)
+    plus_haut = max(max(coefficients.values()), 1.0)
+    barres = []
+    for mois in range(1, 13):
+        coefficient = coefficients[mois]
+        hauteur = max(4, round(70 * coefficient / plus_haut))
+        barres.append({
+            "mois": MOIS[mois - 1], "lettre": INITIALES_MOIS[mois - 1],
+            "x": 10 + (mois - 1) * 28, "y": 80 - hauteur, "hauteur": hauteur,
+            "prix": round(prix_base * coefficient), "coefficient": coefficient,
+            "etiquette": etiquette_saison(coefficient), "actuel": mois == mois_actuel,
+        })
+    return barres
 
 
 # ---------------------------------------------------------------------------

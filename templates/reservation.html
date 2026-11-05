@@ -23,6 +23,13 @@
             <div><dt>Durée</dt><dd>{{ jours(r["nb_jours"]) }}</dd></div>
             <div><dt>Statut</dt><dd>{{ statut(r) }}</dd></div>
         </dl>
+        {% if explication %}
+        <ul class="explication-prix" aria-label="Détail du prix">
+            {% for l in explication %}
+            <li>{{ l["jours"] }} jour{{ "s" if l["jours"] > 1 }} à {{ l["prix_jour"]|fcfa }}{% if l["etiquette"] == "pointe" %} (saison de pointe ×{{ l["coefficient"]|coef }}){% elif l["etiquette"] == "basse" %} (basse saison ×{{ l["coefficient"]|coef }}){% endif %}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
         <p class="total"><span>Total</span> {{ r["prix_total"]|fcfa }}</p>
     </section>
 

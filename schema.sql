@@ -45,3 +45,13 @@ CREATE TABLE IF NOT EXISTS reservations (
 -- Accélère la recherche de conflits de dates pour une machine donnée.
 CREATE INDEX IF NOT EXISTS idx_reservations_machine
     ON reservations (equipement_id, date_debut, date_fin);
+
+
+-- Coefficient de prix par mois et par catégorie de machine (1.3 = +30 %, 0.8 = -20 %).
+-- C'est la "mémoire" du module de prix saisonnier : on peut la corriger sans toucher au code.
+CREATE TABLE IF NOT EXISTS coefficients_saison (
+    categorie TEXT NOT NULL CHECK (categorie IN ('preparation', 'recolte')),
+    mois INTEGER NOT NULL CHECK (mois BETWEEN 1 AND 12),
+    coefficient REAL NOT NULL CHECK (coefficient > 0 AND coefficient <= 3),
+    PRIMARY KEY (categorie, mois)
+);

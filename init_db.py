@@ -59,6 +59,25 @@ if nb_utilisateurs == 0:
         equipements,
     )
 
+# 3. Calendrier saisonnier de départ (seulement si la table est vide).
+# ATTENTION : ce sont des ESTIMATIONS à valider avec des propriétaires et des producteurs
+# de la vallée (sources publiques partielles, calendriers parfois contradictoires).
+COEFFICIENTS = {
+    # tracteurs, motoculteurs, planeuses : pointe avant les semis (début d'année et début d'hivernage)
+    "preparation": {1: 1.3, 2: 1.3, 3: 1.0, 4: 0.8, 5: 0.8, 6: 1.3,
+                    7: 1.3, 8: 1.0, 9: 0.8, 10: 0.8, 11: 1.0, 12: 1.0},
+    # moissonneuses, batteuses : pointe aux deux récoltes (mi-année et fin d'année)
+    "recolte": {1: 0.8, 2: 0.8, 3: 0.8, 4: 1.0, 5: 1.0, 6: 1.4,
+                7: 1.4, 8: 0.8, 9: 0.8, 10: 1.0, 11: 1.4, 12: 1.4},
+}
+if connexion.execute("SELECT COUNT(*) FROM coefficients_saison").fetchone()[0] == 0:
+    for categorie, mois_coefficients in COEFFICIENTS.items():
+        for mois, coefficient in mois_coefficients.items():
+            connexion.execute(
+                "INSERT INTO coefficients_saison (categorie, mois, coefficient) VALUES (?, ?, ?)",
+                (categorie, mois, coefficient),
+            )
+
 connexion.commit()
 connexion.close()
 print("Base de données prête.")

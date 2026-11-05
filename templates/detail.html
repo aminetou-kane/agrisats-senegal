@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_composants.html" import visuel %}
+{% from "_composants.html" import visuel, saison %}
 
 {% block titre %}{{ equipement["nom"] }} - AgriSats Sénégal{% endblock %}
 
@@ -21,6 +21,31 @@
         <p class="texte">{{ equipement["description"] }}</p>
         {% endif %}
 
+        {% if saisonnier %}
+        <section class="saisons" aria-labelledby="titre-saisons">
+            <h2 id="titre-saisons">Prix selon la saison</h2>
+            <svg class="courbe" viewBox="0 0 350 100" role="img" aria-labelledby="titre-courbe">
+                <title id="titre-courbe">Prix par jour de cette machine, mois par mois</title>
+                {% for b in barres %}
+                <rect class="barre barre-{{ b['etiquette'] }}{{ ' barre-actuelle' if b['actuel'] }}" x="{{ b['x'] }}" y="{{ b['y'] }}" width="20" height="{{ b['hauteur'] }}" rx="3"/>
+                <text class="courbe-lettre" x="{{ b['x'] + 10 }}" y="95" text-anchor="middle">{{ b["lettre"] }}</text>
+                {% endfor %}
+            </svg>
+            <p class="note">Barres dorées : saison de pointe. Barres grises : basse saison. Contour : mois en cours. Estimations à valider avec les acteurs de la vallée.</p>
+            <details>
+                <summary>Voir les prix mois par mois</summary>
+                <table class="tableau-saisons">
+                    <thead><tr><th scope="col">Mois</th><th scope="col">Prix par jour</th><th scope="col">Saison</th></tr></thead>
+                    <tbody>
+                    {% for b in barres %}
+                    <tr><th scope="row">{{ b["mois"]|capitalize }}</th><td>{{ b["prix"]|fcfa }}</td><td>{{ {"pointe": "Pointe", "basse": "Basse", "normale": "Normale"}[b["etiquette"]] }}</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </details>
+        </section>
+        {% endif %}
+
         {% if periodes %}
         <section class="periodes" aria-labelledby="titre-periodes">
             <h2 id="titre-periodes">Dates déjà réservées</h2>
@@ -35,7 +60,9 @@
 
     <aside class="panneau" aria-labelledby="titre-reservation">
         <h2 id="titre-reservation" class="visuellement-cache">Réserver cette machine</h2>
-        <p class="prix prix-grand">{{ equipement["prix_base_jour"]|fcfa }} <span>par jour</span></p>
+        <p class="prix prix-grand">{{ prix_jour|fcfa }} <span>par jour aujourd'hui</span></p>
+        <p class="saison-ligne">{{ saison(etiquette, coefficient) }}</p>
+        {% if saisonnier %}<p class="note">Prix de base : {{ equipement["prix_base_jour"]|fcfa }} par jour. Le prix suit la saison : il est calculé pour chaque jour de votre location.</p>{% endif %}
 
         {% if g.user and g.user["role"] == "producteur" %}
         <form method="post" action="{{ url_for('reserver', equipement_id=equipement['id']) }}" class="formulaire formulaire-nu">

@@ -24,7 +24,7 @@
         <div class="carte-corps">
             <h2 class="titre-carte"><a href="{{ url_for('detail_equipement', equipement_id=m['id']) }}">{{ m["nom"] }}</a></h2>
             <p class="lieu">{{ m["localite"] }}</p>
-            <p class="prix">{{ m["prix_base_jour"]|fcfa }} <span>par jour</span></p>
+            <p class="prix">{{ m["prix_base_jour"]|fcfa }} <span>par jour (prix de base)</span></p>
             <div class="actions">
                 <a class="btn btn-secondaire" href="{{ url_for('modifier_machine', equipement_id=m['id']) }}">Modifier</a>
                 <form method="post" action="{{ url_for('retirer_machine', equipement_id=m['id']) }}">

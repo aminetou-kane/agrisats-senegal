@@ -21,3 +21,9 @@
 
 {# "3 jours" ou "1 jour". #}
 {% macro jours(n) %}{{ n|int }} jour{{ "s" if n|int > 1 }}{% endmacro %}
+
+{# Étiquette de saison : "Saison de pointe x1,4", "Basse saison x0,8". Rien si le prix est normal. #}
+{% macro saison(etiquette, coefficient) %}
+{% if etiquette == "pointe" %}<span class="pastille pastille-pointe">Saison de pointe ×{{ coefficient|coef }}</span>
+{% elif etiquette == "basse" %}<span class="pastille pastille-basse">Basse saison ×{{ coefficient|coef }}</span>{% endif %}
+{% endmacro %}

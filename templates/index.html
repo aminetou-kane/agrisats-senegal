@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_composants.html" import visuel %}
+{% from "_composants.html" import visuel, saison %}
 
 {% block titre %}Catalogue du matériel - AgriSats Sénégal{% endblock %}
 
@@ -52,7 +52,8 @@
             <h3><a class="lien-carte" href="{{ url_for('detail_equipement', equipement_id=e['id']) }}">{{ e["nom"] }}</a></h3>
             <p class="lieu">{{ e["localite"] }}</p>
             <p class="description">{{ e["description"] }}</p>
-            <p class="prix">{{ e["prix_base_jour"]|fcfa }} <span>par jour</span></p>
+            <p class="prix">{{ e["prix_jour"]|fcfa }} <span>par jour</span></p>
+            <p class="saison-ligne">{{ saison(e["etiquette"], e["coefficient"]) }}</p>
         </div>
     </article>
     {% endfor %}
