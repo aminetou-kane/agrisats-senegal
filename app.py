@@ -28,6 +28,7 @@ from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import generate_password_hash, check_password_hash
 
 import btcpay
+from init_db import initialiser
 
 # ---------------------------------------------------------------------------
 # 1. Configuration et sécurité
@@ -45,11 +46,15 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"     # le cookie n'est pas envoyé 
 app.config["SESSION_COOKIE_SECURE"] = os.environ.get("PRODUCTION") == "1"
 csrf = CSRFProtect(app)                           # jeton secret dans chaque formulaire
 
-DATABASE = "agrisats.db"
+DATABASE = os.path.join(app.root_path, "agrisats.db")   # chemin complet : indépendant du dossier de lancement
 
 UPLOAD_FOLDER = os.path.join(app.root_path, "static", "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024  # 2 Mo maximum par envoi
+
+# La base est créée (ou mise à jour) au démarrage : sans danger, rien n'est effacé.
+# DONNEES_DEMO=0 dans .env : pas de comptes ni de machines de démonstration.
+initialiser(DATABASE, avec_demo=os.environ.get("DONNEES_DEMO", "1") == "1")
 
 TYPES_MACHINES = ["tracteur", "moissonneuse", "batteuse", "motoculteur",
                   "remorque", "pompe", "planeuse", "autre"]
@@ -303,6 +308,25 @@ def accueil():
     )
 
 
+@app.route("/prix-saisonnier")
+def prix_saisonnier():
+    """Page d'explication : comment le prix est calculé et ce que le module d'IA a appris."""
+    calendriers = {}
+    for categorie in ("preparation", "recolte"):
+        coefficients = get_db().execute(
+            "SELECT mois, coefficient FROM coefficients_saison WHERE categorie = ? ORDER BY mois", (categorie,)
+        ).fetchall()
+        calendriers[categorie] = [
+            {"mois": MOIS[ligne["mois"] - 1], "coefficient": ligne["coefficient"],
+             "etiquette": etiquette_saison(ligne["coefficient"])}
+            for ligne in coefficients]
+    return render_template(
+        "prix_saisonnier.html",
+        calendriers=calendriers,
+        modeles={c: modele_actuel(c) for c in calendriers},
+    )
+
+
 @app.route("/equipement/<int:equipement_id>")
 def detail_equipement(equipement_id):
     db = get_db()
@@ -344,6 +368,7 @@ def detail_equipement(equipement_id):
         equipement=equipement,
         prix_jour=prix, coefficient=coefficient, etiquette=etiquette,
         saisonnier=equipement["type"] in CATEGORIES_SAISON,
+        modele=modele_actuel(CATEGORIES_SAISON.get(equipement["type"], "")),
         barres=courbe_saison(equipement["prix_base_jour"], equipement["type"], date.today().month),
         lien_wa=lien_wa,
         periodes=periodes,
@@ -804,6 +829,20 @@ def charger_coefficients(type_machine):
     return coefficients
 
 
+def modele_actuel(categorie):
+    """Dernière fiche d'évaluation du module d'IA pour cette catégorie (ou None)."""
+    ligne = get_db().execute(
+        "SELECT * FROM modele_prix WHERE categorie = ? ORDER BY id DESC LIMIT 1", (categorie,)
+    ).fetchone()
+    return dict(ligne) if ligne else None
+
+
+@app.template_filter("pourcent")
+def format_pourcent(valeur):
+    """0.064 devient '6 %'."""
+    return f"{round(valeur * 100)} %"
+
+
 def etiquette_saison(coefficient):
     """Traduit un coefficient en mot : pointe, basse ou normale."""
     if coefficient >= 1.05:
@@ -848,7 +887,7 @@ def detail_prix(prix_base, type_machine, date_debut, date_fin):
         jour += timedelta(days=1)
     return [
         {"coefficient": c, "jours": n, "prix_jour": round(prix_base * c), "etiquette": etiquette_saison(c)}
-        for c, n in sorted(jours_par_coefficient.items())
+        for c, n in jours_par_coefficient.items()      # ordre d'apparition = ordre des dates
     ]
 
 

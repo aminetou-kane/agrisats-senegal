@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block titre %}AgriSats Sénégal{% endblock %}</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%23E3A72F'/%3E%3Cpath d='M16 27V9' stroke='%23143D27' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
@@ -62,7 +63,7 @@
     </main>
 
     <footer class="pied">
-        <p>Projet réalisé pour le Hackathon #4 des Dakar Bitcoin Days. Les machines et les prix affichés sont des données de démonstration.</p>
+        <p>Projet réalisé pour le Hackathon #4 des Dakar Bitcoin Days. Les machines et les prix affichés sont des données de démonstration. <a href="{{ url_for('prix_saisonnier') }}">Comment le prix est calculé</a></p>
     </footer>
 </body>
 </html>

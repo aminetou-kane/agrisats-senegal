@@ -55,3 +55,16 @@ CREATE TABLE IF NOT EXISTS coefficients_saison (
     coefficient REAL NOT NULL CHECK (coefficient > 0 AND coefficient <= 3),
     PRIMARY KEY (categorie, mois)
 );
+
+
+-- Fiche d'évaluation du module d'IA : une ligne à chaque apprentissage et par catégorie.
+-- erreur_modele et erreur_reference sont des erreurs moyennes (0.06 = 6 %).
+CREATE TABLE IF NOT EXISTS modele_prix (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    categorie TEXT NOT NULL CHECK (categorie IN ('preparation', 'recolte')),
+    date_entrainement TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    source TEXT NOT NULL CHECK (source IN ('simule', 'terrain', 'mixte')),
+    nb_observations INTEGER NOT NULL,
+    erreur_modele REAL,
+    erreur_reference REAL
+);

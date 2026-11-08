@@ -32,6 +32,11 @@
                 {% endfor %}
             </svg>
             <p class="note">Barres dorées : saison de pointe. Barres grises : basse saison. Contour : mois en cours. Estimations à valider avec les acteurs de la vallée.</p>
+            {% if modele %}
+            <p class="note">Calendrier appris par le module d'IA sur {{ modele["nb_observations"]|espaces }} observations {{ "simulées" if modele["source"] == "simule" else "de terrain" if modele["source"] == "terrain" else "simulées et de terrain" }}{% if modele["erreur_modele"] is not none %} : erreur moyenne {{ modele["erreur_modele"]|pourcent }}, contre {{ modele["erreur_reference"]|pourcent }} avec un prix constant{% endif %}. <a href="{{ url_for('prix_saisonnier') }}">Comment le prix est calculé</a></p>
+            {% else %}
+            <p class="note">Calendrier : estimation de départ. <a href="{{ url_for('prix_saisonnier') }}">Comment le prix est calculé</a></p>
+            {% endif %}
             <details>
                 <summary>Voir les prix mois par mois</summary>
                 <table class="tableau-saisons">

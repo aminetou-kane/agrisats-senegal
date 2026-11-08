@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block titre %}Comment le prix est calculé - AgriSats Sénégal{% endblock %}
+
+{% block contenu %}
+<div class="page-lecture">
+    <h1>Comment le prix est calculé</h1>
+
+    <p>Le prix d'une location suit la saison agricole : la demande de matériel est plus forte avant les semis et pendant les récoltes. Pour chaque jour de votre location, le prix est :</p>
+    <p class="formule">prix de base × coefficient du mois</p>
+
+    <h2>Le module d'IA</h2>
+    <p>Les coefficients ne sont pas écrits à la main : un petit modèle d'apprentissage statistique les <strong>apprend</strong> à partir d'un historique de prix de location. Pour chaque catégorie de machine et chaque mois, il calcule le rapport moyen entre le prix payé et le prix de base. S'il manque de données pour un mois, il reste proche de l'estimation de départ, pour ne pas changer d'avis sur une seule observation.</p>
+    <p>Il mesure aussi ses propres erreurs : il s'entraîne sur une partie des données et se teste sur l'autre (validation croisée), puis se compare à un prix qui ne changerait jamais.</p>
+
+    {% for categorie, titre in [("preparation", "Préparation du sol : tracteurs, motoculteurs, planeuses"), ("recolte", "Récolte : moissonneuses, batteuses")] %}
+    <section class="saisons">
+        <h2>{{ titre }}</h2>
+        {% set modele = modeles[categorie] %}
+        {% if modele %}
+        <p class="note">Appris sur {{ modele["nb_observations"]|espaces }} observations {{ "simulées" if modele["source"] == "simule" else "de terrain" if modele["source"] == "terrain" else "simulées et de terrain" }}.
+        {% if modele["erreur_modele"] is not none %}Erreur moyenne : {{ modele["erreur_modele"]|pourcent }}, contre {{ modele["erreur_reference"]|pourcent }} pour un prix constant.{% endif %}</p>
+        {% else %}
+        <p class="note">Estimation de départ (pas encore d'apprentissage).</p>
+        {% endif %}
+        <table class="tableau-saisons">
+            <thead><tr><th scope="col">Mois</th><th scope="col">Coefficient</th><th scope="col">Saison</th></tr></thead>
+            <tbody>
+            {% for ligne in calendriers[categorie] %}
+            <tr><th scope="row">{{ ligne["mois"]|capitalize }}</th><td>×{{ ligne["coefficient"]|coef }}</td><td>{{ {"pointe": "Pointe", "basse": "Basse", "normale": "Normale"}[ligne["etiquette"]] }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    {% endfor %}
+
+    <h2>Ce qu'il faut savoir</h2>
+    <ul>
+        <li><strong>Les données d'apprentissage fournies sont simulées.</strong> Elles sont fabriquées à partir du calendrier estimé, avec du bruit : le modèle le retrouve donc par construction. Cela montre que la chaîne fonctionne, pas que le calendrier est exact.</li>
+        <li>Avec de vraies observations de terrain (date, type de machine, prix payé, prix de base), les coefficients se corrigent d'eux-mêmes.</li>
+        <li>Les prix et le calendrier sont des <strong>estimations à valider</strong> avec des propriétaires et des producteurs de la vallée.</li>
+        <li>Le prix d'une réservation est calculé par le serveur au moment de la réservation, et il ne change plus ensuite.</li>
+    </ul>
+</div>
+{% endblock %}
