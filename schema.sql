@@ -68,3 +68,16 @@ CREATE TABLE IF NOT EXISTS modele_prix (
     erreur_modele REAL,
     erreur_reference REAL
 );
+
+
+-- Factures du mode SIMULATION (démonstration). Aucun vrai paiement : voir paiement_simule.py.
+CREATE TABLE IF NOT EXISTS factures_simulees (
+    id TEXT PRIMARY KEY,
+    reservation_id INTEGER NOT NULL,
+    montant_btc TEXT NOT NULL,
+    minutes_validite INTEGER NOT NULL CHECK (minutes_validite > 0),
+    statut TEXT NOT NULL DEFAULT 'New' CHECK (statut IN ('New', 'Settled')),
+    date_creation TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    date_paiement TEXT,
+    FOREIGN KEY (reservation_id) REFERENCES reservations(id)
+);

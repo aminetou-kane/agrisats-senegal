@@ -38,8 +38,20 @@ Une application web qui met en relation **propriétaires de matériel** et **pro
 | Module d'IA : apprentissage du calendrier de prix à partir d'un historique | Terminé, entraîné sur des données **simulées** ; données de terrain à ajouter |
 | Contact WhatsApp (numéro visible seulement pour un producteur connecté) | Terminé |
 | Acompte Lightning avec BTCPay Server | Code terminé et testé avec un serveur simulé ; test sur une vraie instance : **[à compléter]** |
+| Mode SIMULATION du paiement (démonstration en ligne) | Terminé, désactivé par défaut |
 | Paiement à l'hectare (unité de location) | À venir |
 | Mobile Money, USSD, Nostr | Vision future |
+
+## Mode simulation du paiement
+
+Un vrai paiement Lightning de test demande un serveur BTCPay et un portefeuille de test. Pour que chacun puisse parcourir tout le parcours (réservation, acompte, confirmation) sans cela, un **mode simulation** existe :
+
+- **Désactivé par défaut.** Activé seulement par `PAIEMENT_SIMULE=1` dans `.env`.
+- **Jamais utilisé si BTCPay est configuré** : le vrai paiement l'emporte toujours.
+- **Impossible à confondre avec un vrai paiement** : bandeau « MODE SIMULATION » sur toutes les pages, factures `SIM-...`, mention « Paiement simulé » sur la réservation et chez le propriétaire, et **aucun QR code** (aucun vrai portefeuille ne peut être trompé).
+- **Mêmes contrôles que le réel** : la simulation produit une facture de la même forme que BTCPay, et c'est le même code qui décide de confirmer la réservation (statut payé, montant, réservation concernée, dates encore libres, délai d'expiration).
+
+À ne **jamais** activer avec de vraies réservations : c'est un outil de démonstration.
 
 ## Module d'IA : apprentissage du calendrier de prix
 
@@ -123,6 +135,7 @@ Ouvrez http://127.0.0.1:5000. La base de données est créée automatiquement au
 | `PRODUCTION` | `1` en ligne (HTTPS) : cookie de connexion `Secure` |
 | `DONNEES_DEMO` | `1` : comptes et machines de démonstration au premier démarrage, `0` : base vide |
 | `SITE_URL` | Adresse du site, pour le retour après paiement |
+| `PAIEMENT_SIMULE` | `1` : paiement simulé pour la démonstration (jamais avec de vraies réservations) |
 | `BTCPAY_URL`, `BTCPAY_STORE_ID`, `BTCPAY_API_KEY` | Connexion à BTCPay Server (laisser vide pour désactiver le paiement) |
 | `BTCPAY_WEBHOOK_SECRET` | Secret du webhook BTCPay (facultatif en local) |
 | `TAUX_FCFA_PAR_BTC` | Taux fixe de démonstration : valeur d'1 BTC en FCFA |
@@ -153,6 +166,7 @@ Attention : sur un hébergement gratuit au disque éphémère, la base SQLite et
 app.py               routes, sécurité, prix saisonnier, paiement
 btcpay.py            client de l'API BTCPay Server
 ia_prix.py           module d'IA : apprentissage du calendrier de prix
+paiement_simule.py   paiement simulé pour la démonstration
 data/                historique de prix simulé (à remplacer par des données de terrain)
 init_db.py           création et mise à jour de la base
 schema.sql           structure de la base

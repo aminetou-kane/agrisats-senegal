@@ -18,7 +18,7 @@
             <p>Du {{ r["date_debut"]|datefr }} au {{ r["date_fin"]|datefr }} ({{ jours(r["nb_jours"]) }})</p>
             <p class="lieu">Demandée par {{ r["producteur_nom"] }}</p>
             {% if r["statut"] == "confirmee" and r["acompte_fcfa"] %}
-            <p>Acompte reçu : {{ r["acompte_fcfa"]|fcfa }}. Solde à régler avec le producteur : {{ (r["prix_total"] - r["acompte_fcfa"])|fcfa }}.</p>
+            <p>Acompte reçu{% if r["id_facture"] and r["id_facture"].startswith("SIM-") %} (paiement simulé){% endif %} : {{ r["acompte_fcfa"]|fcfa }}. Solde à régler avec le producteur : {{ (r["prix_total"] - r["acompte_fcfa"])|fcfa }}.</p>
             {% endif %}
         </div>
         <div class="ligne-droite">

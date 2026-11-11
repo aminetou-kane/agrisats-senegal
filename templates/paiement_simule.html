@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block titre %}Paiement simulé - AgriSats Sénégal{% endblock %}
+
+{% block contenu %}
+<p class="fil"><a href="{{ url_for('voir_reservation', reservation_id=r['id']) }}">← Retour à la réservation</a></p>
+
+<div class="page-etroite">
+    <h1>Paiement simulé</h1>
+
+    <p class="message message-erreur"><strong>SIMULATION.</strong> Cette page remplace la page de paiement de BTCPay Server. Aucun vrai Bitcoin n'est échangé et aucun portefeuille n'est nécessaire.</p>
+
+    <section class="recap cadre-simulation">
+        <p class="recap-nom">Acompte de la réservation n° {{ r["id"] }}</p>
+        <p class="note">{{ r["machine_nom"] }}, du {{ r["date_debut"]|datefr }} au {{ r["date_fin"]|datefr }}</p>
+        <p class="total"><span>À payer</span> {{ sats|espaces }} sats</p>
+        <p class="note">Soit {{ acompte|fcfa }}, au taux fixe de démonstration. Facture simulée : {{ facture["id"] }}.</p>
+        <p class="note">En mode réel, vous verriez ici un QR code Lightning : votre portefeuille le scannerait et paierait. Ici, aucun QR code n'est généré, pour qu'aucun vrai portefeuille ne puisse être trompé.</p>
+    </section>
+
+    <form method="post" action="{{ url_for('confirmer_paiement_simule', reservation_id=r['id']) }}" class="formulaire-nu">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-principal btn-large">Simuler le paiement (aucun vrai Bitcoin)</button>
+    </form>
+
+    <h2>Ce qui se passe ensuite</h2>
+    <p>Le serveur applique <strong>exactement les mêmes contrôles</strong> qu'avec un vrai paiement : la facture est-elle payée, pour le bon montant, pour cette réservation, et les dates sont-elles encore libres ? Ce n'est qu'à cette condition que la réservation est confirmée. Le bouton ci-dessus remplace seulement le portefeuille.</p>
+</div>
+{% endblock %}

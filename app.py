@@ -28,6 +28,7 @@ from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import generate_password_hash, check_password_hash
 
 import btcpay
+import paiement_simule
 from init_db import initialiser
 
 # ---------------------------------------------------------------------------
@@ -913,9 +914,30 @@ def courbe_saison(prix_base, type_machine, mois_actuel):
 # ---------------------------------------------------------------------------
 # Principe : le navigateur ne dit JAMAIS "c'est payé". Seul BTCPay peut le dire, et
 # notre serveur le vérifie lui-même auprès de BTCPay avant de confirmer la réservation.
+TAUX_SIMULATION = 60_000_000    # taux de démonstration, utilisé seulement en mode simulé
+
+
+def mode_paiement():
+    """'reel' (BTCPay), 'simule' (démonstration) ou None (paiement désactivé).
+
+    Le vrai paiement l'emporte toujours. La simulation n'existe que si PAIEMENT_SIMULE=1.
+    """
+    if btcpay.disponible() and taux_fcfa_par_btc() is not None:
+        return "reel"
+    if os.environ.get("PAIEMENT_SIMULE") == "1":
+        return "simule"
+    return None
+
+
 def paiement_actif():
-    """Vrai si BTCPay et le taux de conversion sont configurés dans .env."""
-    return btcpay.disponible() and taux_fcfa_par_btc() is not None
+    """Vrai si un paiement (réel ou simulé) est possible."""
+    return mode_paiement() is not None
+
+
+@app.context_processor
+def injecter_mode_paiement():
+    """Rend le mode disponible dans toutes les pages (pour le bandeau SIMULATION)."""
+    return {"mode_paiement": mode_paiement()}
 
 
 def taux_fcfa_par_btc():
@@ -930,7 +952,7 @@ def taux_fcfa_par_btc():
 def calculer_acompte(prix_total):
     """Retourne (acompte en FCFA, acompte en satoshis ou None si le taux manque)."""
     acompte = max(1, round(prix_total * ACOMPTE_POURCENT / 100))
-    taux = taux_fcfa_par_btc()
+    taux = taux_fcfa_par_btc() or (TAUX_SIMULATION if mode_paiement() == "simule" else None)
     sats = max(1, math.ceil(acompte * 100_000_000 / taux)) if taux else None
     return acompte, sats
 
@@ -950,6 +972,34 @@ def lien_externe_sur(lien):
     """On ne redirige le client que vers une adresse https (ou locale pour les essais)."""
     return isinstance(lien, str) and (
         lien.startswith("https://") or lien.startswith("http://127.0.0.1") or lien.startswith("http://localhost"))
+
+
+def lien_de_paiement_sur(lien):
+    """Adresse de paiement acceptée : https (ou locale pour les essais), ou la page interne de simulation."""
+    return lien_externe_sur(lien) or (
+        isinstance(lien, str) and lien.startswith("/paiement-simule/") and "//" not in lien and "\\" not in lien)
+
+
+def creer_facture_paiement(reservation_id, sats, minutes):
+    """Crée la facture : chez BTCPay (réel) ou dans la base (simulation)."""
+    montant = sats_en_btc(sats)
+    if mode_paiement() == "simule":
+        return paiement_simule.creer_facture(
+            get_db(), reservation_id, montant, minutes,
+            url_for("page_paiement_simule", reservation_id=reservation_id))
+    site = os.environ.get("SITE_URL", "").rstrip("/")
+    url_retour = f"{site}{url_for('voir_reservation', reservation_id=reservation_id)}" if site else None
+    return btcpay.creer_facture(montant, reservation_id, minutes, url_retour)
+
+
+def lire_facture_paiement(id_facture):
+    """Lit une facture. None si elle n'est pas lisible dans le mode actuel
+    (par exemple une facture simulée alors que la simulation est coupée)."""
+    if paiement_simule.est_simulee(id_facture):
+        return paiement_simule.lire_facture(get_db(), id_facture) if mode_paiement() == "simule" else None
+    if not btcpay.disponible():
+        return None
+    return btcpay.lire_facture(id_facture)
 
 
 def appliquer_facture(reservation_id, facture):
@@ -1009,13 +1059,15 @@ def appliquer_facture(reservation_id, facture):
 
 
 def synchroniser_paiement(reservation):
-    """Demande à BTCPay si la facture d'une réservation en attente est payée."""
-    if reservation["statut"] != "en_attente" or not reservation["id_facture"] or not btcpay.disponible():
+    """Demande à BTCPay (ou à la simulation) si la facture d'une réservation en attente est payée."""
+    if reservation["statut"] != "en_attente" or not reservation["id_facture"]:
         return False
     try:
-        facture = btcpay.lire_facture(reservation["id_facture"])
+        facture = lire_facture_paiement(reservation["id_facture"])
     except btcpay.ErreurBTCPay:
         return False          # BTCPay indisponible : on réessaiera au prochain affichage
+    if facture is None:
+        return False
     return appliquer_facture(reservation["id"], facture) is not None
 
 
@@ -1035,25 +1087,24 @@ def payer_reservation(reservation_id):
     try:
         # Une facture existe déjà ? On la réutilise si elle est encore valable.
         if reservation["id_facture"]:
-            facture = btcpay.lire_facture(reservation["id_facture"])
-            if appliquer_facture(reservation_id, facture) == "confirmee":
-                flash("Acompte reçu : votre réservation est confirmée.")
-                return retour
-            if facture.get("status") == "New" and lien_externe_sur(reservation["lien_paiement"]):
-                return redirect(reservation["lien_paiement"])
+            facture = lire_facture_paiement(reservation["id_facture"])
+            if facture is not None:
+                if appliquer_facture(reservation_id, facture) == "confirmee":
+                    flash("Acompte reçu : votre réservation est confirmée.")
+                    return retour
+                if facture.get("status") == "New" and lien_de_paiement_sur(reservation["lien_paiement"]):
+                    return redirect(reservation["lien_paiement"])
 
         acompte, sats = calculer_acompte(reservation["prix_total"])
         # La facture ne doit pas vivre plus longtemps que le blocage des dates.
         minutes = max(1, int(reservation["minutes_restantes"]))
-        site = os.environ.get("SITE_URL", "").rstrip("/")
-        url_retour = f"{site}{url_for('voir_reservation', reservation_id=reservation_id)}" if site else None
-        facture = btcpay.creer_facture(sats_en_btc(sats), reservation_id, minutes, url_retour)
+        facture = creer_facture_paiement(reservation_id, sats, minutes)
     except btcpay.ErreurBTCPay:
         flash("Le service de paiement ne répond pas. Réessayez dans un instant.", "erreur")
         return retour
 
     lien = facture.get("checkoutLink")
-    if not facture.get("id") or not lien_externe_sur(lien):
+    if not facture.get("id") or not lien_de_paiement_sur(lien):
         flash("Le service de paiement a renvoyé une réponse inattendue.", "erreur")
         return retour
 
@@ -1065,6 +1116,54 @@ def payer_reservation(reservation_id):
     )
     db.commit()
     return redirect(lien)
+
+
+# --- Mode SIMULATION (démonstration) : voir paiement_simule.py -------------------------
+def reservation_pour_simulation(reservation_id):
+    """Réservation du producteur connecté. 404 si la simulation n'est pas active (elle n'existe pas)."""
+    if mode_paiement() != "simule":
+        abort(404)
+    return lire_reservation(reservation_id)
+
+
+@app.route("/paiement-simule/<int:reservation_id>")
+@role_requis("producteur")
+def page_paiement_simule(reservation_id):
+    reservation = reservation_pour_simulation(reservation_id)
+    retour = redirect(url_for("voir_reservation", reservation_id=reservation_id))
+    if (reservation["statut"] != "en_attente" or reservation["expiree"]
+            or not paiement_simule.est_simulee(reservation["id_facture"])):
+        flash("Aucune facture simulée en attente pour cette réservation.", "erreur")
+        return retour
+    facture = lire_facture_paiement(reservation["id_facture"])
+    if facture is None or facture["status"] != "New":
+        flash("Cette facture simulée n'est plus valable.", "erreur")
+        return retour
+    return render_template("paiement_simule.html", r=reservation, facture=facture,
+                           sats=reservation["acompte_sats"], acompte=reservation["acompte_fcfa"])
+
+
+@app.route("/paiement-simule/<int:reservation_id>/confirmer", methods=["POST"])
+@role_requis("producteur")
+def confirmer_paiement_simule(reservation_id):
+    reservation = reservation_pour_simulation(reservation_id)
+    retour = redirect(url_for("voir_reservation", reservation_id=reservation_id))
+    if (reservation["statut"] != "en_attente" or reservation["expiree"]
+            or not paiement_simule.est_simulee(reservation["id_facture"])):
+        flash("Aucune facture simulée en attente pour cette réservation.", "erreur")
+        return retour
+    if not paiement_simule.marquer_payee(get_db(), reservation["id_facture"]):
+        flash("Cette facture simulée a expiré ou est déjà payée.", "erreur")
+        return retour
+    # Même contrôle que pour un vrai paiement : statut, montant, réservation, dates libres.
+    resultat = appliquer_facture(reservation_id, lire_facture_paiement(reservation["id_facture"]))
+    if resultat == "confirmee":
+        flash("SIMULATION : paiement simulé reçu, votre réservation est confirmée.")
+    elif resultat == "incident":
+        flash("SIMULATION : les dates ont été reprises par quelqu'un d'autre avant ce paiement.", "erreur")
+    else:
+        flash("Le paiement simulé n'a pas pu être validé.", "erreur")
+    return retour
 
 
 @app.route("/btcpay/webhook", methods=["POST"])

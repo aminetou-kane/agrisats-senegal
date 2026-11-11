@@ -10,6 +10,10 @@
 <body>
     <a class="lien-evitement" href="#contenu">Aller au contenu</a>
 
+    {% if mode_paiement == "simule" %}
+    <div class="bandeau-simulation" role="status"><strong>MODE SIMULATION</strong> : les paiements de ce site sont simulés. Aucun vrai Bitcoin n'est échangé.</div>
+    {% endif %}
+
     <header class="entete">
         <div class="entete-interieur">
             <a href="{{ url_for('accueil') }}" class="logo">
